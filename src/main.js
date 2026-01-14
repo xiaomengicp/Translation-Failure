@@ -90,8 +90,19 @@ const Game = {
      * 游戏主循环
      */
     loop() {
-        this.update();
-        this.render();
+        try {
+            this.update();
+            this.render();
+        } catch (e) {
+            console.error(e);
+            // Draw error to canvas
+            const ctx = Renderer.ctx;
+            if (ctx) {
+                ctx.fillStyle = 'red';
+                ctx.font = '12px monospace';
+                ctx.fillText('Runtime Error: ' + e.message, 10, 20);
+            }
+        }
 
         Input.endFrame();
         this.frameCount++;
@@ -108,38 +119,27 @@ const Game = {
 
         Dialogue.update();
 
-        // 总是更新过渡效果，独立于状态
-        if (this.state === 'transition' || this.transitionAlpha > 0) {
+        // 总是尝试更新过渡效果，防止在状态切换后停止渲染
+        if (this.transitionAlpha > 0 || this.state === 'transition') {
             this.updateTransition();
         }
 
-        // 如果处于全黑过渡中，且回调已执行（意味着底层状态已变），
-        // 或者刚开始过渡，我们要根据current state停止底层逻辑吗？
-        // 简单处理：如果alpha >= 1，暂停底层逻辑更新
-        if (this.transitionAlpha >= 1) {
-            return;
-        }
-
-        // 如果state是transition，说明正在淡出，尚未切换，此时仍更新previousState逻辑？
-        // 为了简化，我们只在非transition状态下更新底层逻辑
-        if (this.state !== 'transition') {
-            switch (this.state) {
-                case 'title':
-                    this.updateTitle();
-                    break;
-                case 'exploration':
-                    Exploration.update();
-                    break;
-                case 'battle':
-                    Battle.update();
-                    break;
-                case 'end':
-                    // End screen logic if any
-                    break;
-            }
-        } else if (this.previousState) {
-            // 如果还在淡出阶段，继续运行上一个状态的逻辑（可选，或者暂停）
-            // 暂停比较安全
+        switch (this.state) {
+            case 'title':
+                this.updateTitle();
+                break;
+            case 'exploration':
+                Exploration.update();
+                break;
+            case 'battle':
+                Battle.update();
+                break;
+            case 'transition':
+                // updateTransition已在上方处理
+                break;
+            case 'end':
+                // End screen logic
+                break;
         }
     },
 
@@ -148,6 +148,9 @@ const Game = {
      */
     updateTitle() {
         if (Input.isJustPressed('confirm')) {
+            // 消费输入
+            if (Input.clear) Input.clear('confirm');
+
             Audio.confirm();
 
             // 检查是否有存档
@@ -184,7 +187,7 @@ const Game = {
                 this.transitionAlpha = 0;
                 this.transitionCallbackExecuted = false;
                 this.transitionCallback = null;
-                // 过渡结束 - 但state已经在callback中被设置了
+                // state已经在callback中被设置了
             }
         }
     },
@@ -193,28 +196,7 @@ const Game = {
      * 渲染游戏
      */
     render() {
-        // 1. 渲染底层游戏画面
-        // 如果是在transition状态，我们需要决定渲染哪个底层画面
-        // 逻辑：如果callback还没执行（淡出中），渲染previousState
-        // 如果callback已执行（淡入中），渲染当前的state
-
-        let renderState = this.state;
-        if (this.state === 'transition') {
-            renderState = this.transitionCallbackExecuted ? this.state : this.previousState;
-            // 注意：如果callback还没执行，this.state是transition，所以需要用previousState
-            // 如果callback执行了，callback里面可能会把this.state改成battle
-            // 但是 updateTransition 逻辑里面 state 还是 transition 吗？
-            // 看 callback 实现：
-            // startBattle: this.state = 'battle'
-            // 所以一旦callback执行，this.state 变成了 'battle'。
-            // 所以如果 this.state === 'transition'，那一定还没切状态，或者是 faded out 状态。
-
-            if (!this.transitionCallbackExecuted) {
-                renderState = this.previousState;
-            }
-        }
-
-        switch (renderState) {
+        switch (this.state) {
             case 'title':
                 this.renderTitle();
                 break;
@@ -224,27 +206,75 @@ const Game = {
             case 'battle':
                 Battle.render();
                 break;
+            case 'transition':
+                this.renderTransition();
+                break;
             case 'end':
                 this.renderEnd();
                 break;
-            case 'transition':
-                // 如果 somehow 还是 transition 且没找到 previousState...
-                Renderer.clear(Renderer.COLORS.BLACK);
-                break;
         }
 
-        // 2. 渲染过渡遮罩 (如果在过渡中)
-        if (this.state === 'transition' || this.transitionAlpha > 0) {
+        // 渲染过渡遮罩（如果在非transition状态但仍在淡入中）
+        if (this.state !== 'transition' && this.transitionAlpha > 0) {
             Renderer.ctx.fillStyle = `rgba(0, 0, 0, ${this.transitionAlpha})`;
             Renderer.ctx.fillRect(0, 0, Renderer.WIDTH, Renderer.HEIGHT);
         }
     },
 
     /**
-     * 渲染过渡效果 (过时，已整合进 render)
+     * 渲染标题画面
+     */
+    renderTitle() {
+        Renderer.clear(Renderer.COLORS.BLACK);
+
+        // 标题
+        Renderer.drawTextCentered('Translation Failure', 100, Renderer.COLORS.WHITE, 32);
+        Renderer.drawTextCentered('翻译失败', 140, Renderer.COLORS.BLUE, 20);
+
+        // 内容警告
+        Renderer.drawTextCentered('⚠ 内容警告 ⚠', 200, Renderer.COLORS.RED, 14);
+        Renderer.drawTextCentered('本游戏涉及家庭创伤、心理虐待、gaslighting等内容', 220, Renderer.COLORS.WHITE, 12);
+        Renderer.drawTextCentered('可能触发trauma，请酌情游玩', 240, Renderer.COLORS.WHITE, 12);
+
+        // 开始提示（闪烁）
+        if (Math.floor(this.frameCount / 30) % 2 === 0) {
+            Renderer.drawTextCentered('按 Z 或 Enter 开始', 300, Renderer.COLORS.WHITE, 16);
+        }
+
+        // 版权
+        Renderer.drawTextCentered('2025', Renderer.HEIGHT - 30, Renderer.COLORS.BLUE, 12);
+    },
+
+    /**
+     * 渲染过渡效果
      */
     renderTransition() {
-        // Deprecated
+        // 确定要渲染哪个场景
+        // 如果callback还没执行，渲染previousState
+        // 如果callback已执行，渲染新的state
+        const sceneToRender = this.transitionCallbackExecuted ? this.state : this.previousState;
+
+        // 渲染场景
+        switch (sceneToRender) {
+            case 'exploration':
+                Exploration.render();
+                break;
+            case 'battle':
+                Battle.render();
+                break;
+            case 'title':
+                this.renderTitle();
+                break;
+            case 'end':
+                this.renderEnd();
+                break;
+            default:
+                Renderer.clear(Renderer.COLORS.BLACK);
+        }
+
+        // 覆盖黑色遮罩
+        Renderer.ctx.fillStyle = `rgba(0, 0, 0, ${this.transitionAlpha})`;
+        Renderer.ctx.fillRect(0, 0, Renderer.WIDTH, Renderer.HEIGHT);
     },
 
     /**
