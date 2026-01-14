@@ -155,6 +155,10 @@ const Draw = {
         const cx = x + size / 2;
         const cy = y + size / 2;
 
+        // 在画物品前，先画一个半透明黑色背景遮挡地板纹理，提高清晰度
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(x + 1, y + 1, size - 2, size - 2);
+
         switch (itemId) {
             case 'BED':
                 // 床 - 床垫 + 枕头 + 被子皱褶

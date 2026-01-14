@@ -118,6 +118,9 @@ const Dialogue = {
                 Audio.menuMove();
             }
             if (Input.isJustPressed('confirm')) {
+                // 消费输入，防止Exploration再次处理
+                Input.clear('confirm');
+
                 Audio.confirm();
                 const callback = this.onOptionSelect;
                 const selected = this.selectedOption;
@@ -129,6 +132,9 @@ const Dialogue = {
 
         // 普通对话模式：按确认继续
         if (Input.isJustPressed('confirm')) {
+            // 消费输入
+            Input.clear('confirm');
+
             this.currentLine++;
 
             if (this.currentLine >= this.lines.length) {

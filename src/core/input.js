@@ -99,6 +99,14 @@ const Input = {
     },
 
     /**
+     * 清除某个动作的输入状态（消费输入）
+     */
+    clear(action) {
+        this.justPressed[action] = false;
+        this.keys[action] = false;
+    },
+
+    /**
      * 获取方向输入（用于移动）
      * @returns {{x: number, y: number}}
      */
