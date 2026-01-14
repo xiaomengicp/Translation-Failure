@@ -450,9 +450,8 @@ const Exploration = {
         const offsetX = (Renderer.WIDTH - roomPixelWidth) / 2;
         const offsetY = (Renderer.HEIGHT - roomPixelHeight) / 2;
 
-        // 渲染地面和墙壁
+        // 渲染地面
         Draw.roomFloor(offsetX, offsetY, roomWidth, roomHeight, GRID.TILE_SIZE);
-        Draw.roomWalls(offsetX, offsetY, roomWidth, roomHeight, GRID.TILE_SIZE);
 
         // 渲染内容
         for (let y = 0; y < roomHeight; y++) {
@@ -461,8 +460,12 @@ const Exploration = {
                 const px = offsetX + x * GRID.TILE_SIZE;
                 const py = offsetY + y * GRID.TILE_SIZE;
 
-                // 地板(0)和墙(1)已经画过了
-                if (typeof tile === 'string') {
+                if (tile === 1) {
+                    // 绘制墙壁
+                    Draw.wall(px, py, GRID.TILE_SIZE);
+                } else if (tile === 2) {
+                    // 预留：其他障碍
+                } else if (typeof tile === 'string') {
                     // 如果已经拿到钥匙，跳过普通钥匙tile
                     if (tile === 'KEY' && (this.flags.hasKey || this.flags.keyJustFlew)) {
                         continue;

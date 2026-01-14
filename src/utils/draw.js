@@ -58,6 +58,17 @@ const Draw = {
     },
 
     /**
+     * 绘制整个房间地板
+     */
+    roomFloor(x, y, w, h, size) {
+        for (let i = 0; i < h; i++) {
+            for (let j = 0; j < w; j++) {
+                this.floor(x + j * size, y + i * size, size);
+            }
+        }
+    },
+
+    /**
      * 绘制地板（有纹理的黑色）
      */
     floor(x, y, size) {
