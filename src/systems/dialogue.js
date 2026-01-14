@@ -18,6 +18,7 @@ const Dialogue = {
     // Gaslight效果
     gaslightText: null,
     gaslightAlpha: 0,
+    gaslightBlocking: false,  // 阻止输入
 
     // 妈妈声音效果
     momVoice: null,
@@ -62,7 +63,20 @@ const Dialogue = {
     showGaslight(text) {
         this.gaslightText = text;
         this.gaslightAlpha = 1;
+        this.gaslightBlocking = true;  // 短暂阻止输入
         Audio.gaslight();
+
+        // 1秒后取消阻止
+        setTimeout(() => {
+            this.gaslightBlocking = false;
+        }, 1000);
+    },
+
+    /**
+     * 检查是否阻止输入
+     */
+    isBlocking() {
+        return this.active || this.gaslightBlocking;
     },
 
     /**

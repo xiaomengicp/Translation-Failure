@@ -71,7 +71,8 @@ const Exploration = {
      * 更新探索状态
      */
     update() {
-        if (Dialogue.active) return;
+        // 检查对话/gaslight是否阻止输入
+        if (Dialogue.isBlocking()) return;
 
         // 移动冷却
         if (this.moveCooldown > 0) {
