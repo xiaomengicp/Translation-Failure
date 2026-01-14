@@ -149,6 +149,11 @@ const Exploration = {
 
     /**
      * 尝试从出口离开
+     * 实现非欧几里得空间拓扑：
+     * - teleport: 瞬间传送（无过渡）
+     * - distorted: 扭曲出口（带权重的随机）
+     * - loop: 循环出口（永远回到同一房间）
+     * - fixed: 固定出口
      */
     tryExit(direction) {
         const room = this.currentRoom;
@@ -161,37 +166,93 @@ const Exploration = {
         }
 
         let targetRoom, spawnX, spawnY;
+        let showMessage = null;
 
-        if (exit.type === 'fixed') {
-            targetRoom = exit.target;
-            spawnX = exit.spawnX;
-            spawnY = exit.spawnY;
-        } else if (exit.type === 'random') {
-            // 检查是否有记忆
-            const memoryKey = room.id + '_' + direction;
+        switch (exit.type) {
+            case 'fixed':
+                targetRoom = exit.target;
+                spawnX = exit.spawnX;
+                spawnY = exit.spawnY;
+                break;
 
-            if (this.exitMemory[memoryKey]) {
-                // 使用记忆的出口
-                const memory = this.exitMemory[memoryKey];
-                targetRoom = memory.target;
-                spawnX = memory.spawnX;
-                spawnY = memory.spawnY;
-            } else {
-                // 随机选择
-                const index = Math.floor(Math.random() * exit.targets.length);
-                targetRoom = exit.targets[index];
-                spawnX = exit.spawns[index].spawnX;
-                spawnY = exit.spawns[index].spawnY;
-
-                // bedroom_1和living_room的随机出口记忆下来（固定后不再随机）
-                // 但bedroom_2永远随机
-                if (room.id !== 'bedroom_2') {
-                    this.exitMemory[memoryKey] = { target: targetRoom, spawnX, spawnY };
+            case 'teleport':
+                // 瞬间传送 - 添加视觉效果
+                targetRoom = exit.target;
+                spawnX = exit.spawnX;
+                spawnY = exit.spawnY;
+                Renderer.flicker(4);  // 轻微闪烁表示传送
+                if (exit.message) {
+                    showMessage = exit.message;
                 }
-            }
+                break;
+
+            case 'distorted':
+                // 扭曲出口 - 带权重的随机选择
+                const weights = exit.weights || exit.targets.map(() => 1 / exit.targets.length);
+                const roll = Math.random();
+                let cumulative = 0;
+                let selectedIndex = 0;
+
+                for (let i = 0; i < weights.length; i++) {
+                    cumulative += weights[i];
+                    if (roll < cumulative) {
+                        selectedIndex = i;
+                        break;
+                    }
+                }
+
+                targetRoom = exit.targets[selectedIndex];
+                spawnX = exit.spawns[selectedIndex].spawnX;
+                spawnY = exit.spawns[selectedIndex].spawnY;
+
+                // 如果回到同一个房间，添加扭曲效果
+                if (targetRoom === room.id) {
+                    Renderer.shake(6);
+                }
+                break;
+
+            case 'loop':
+                // 循环出口 - 永远回到指定位置
+                targetRoom = exit.target;
+                spawnX = exit.spawnX;
+                spawnY = exit.spawnY;
+                showMessage = exit.message;
+                Renderer.shake(4);
+                break;
+
+            case 'random':
+                // 保留旧的random类型以保持兼容
+                const memoryKey = room.id + '_' + direction;
+                if (this.exitMemory[memoryKey]) {
+                    const memory = this.exitMemory[memoryKey];
+                    targetRoom = memory.target;
+                    spawnX = memory.spawnX;
+                    spawnY = memory.spawnY;
+                } else {
+                    const index = Math.floor(Math.random() * exit.targets.length);
+                    targetRoom = exit.targets[index];
+                    spawnX = exit.spawns[index].spawnX;
+                    spawnY = exit.spawns[index].spawnY;
+                    if (room.id !== 'bedroom_2') {
+                        this.exitMemory[memoryKey] = { target: targetRoom, spawnX, spawnY };
+                    }
+                }
+                break;
+
+            default:
+                targetRoom = exit.target;
+                spawnX = exit.spawnX;
+                spawnY = exit.spawnY;
         }
 
-        this.enterRoom(targetRoom, spawnX, spawnY);
+        // 如果有消息要显示，先显示消息再传送
+        if (showMessage) {
+            Dialogue.show([showMessage], () => {
+                this.enterRoom(targetRoom, spawnX, spawnY);
+            });
+        } else {
+            this.enterRoom(targetRoom, spawnX, spawnY);
+        }
     },
 
     /**
@@ -270,6 +331,7 @@ const Exploration = {
 
     /**
      * 执行互动
+     * 实现“意图与结果的背离” - UI显示的意图是“查看”，但结果却是“损坏”
      */
     executeInteraction(itemData, interactionType, placement) {
         const interaction = itemData.interactions[interactionType];
@@ -296,10 +358,13 @@ const Exploration = {
             return;
         }
 
-        // 普通互动
+        // 先处理效果（在显示对话之前）
+        this.applyInteractionEffect(interaction);
+
+        // 显示对话
         let dialogueLines = [interaction.result];
 
-        // 如果有gaslight文字
+        // 如果有gaslight文字，对话结束后显示
         if (interaction.gaslight) {
             Dialogue.show(dialogueLines, () => {
                 Dialogue.showGaslight(interaction.gaslight);
@@ -312,18 +377,31 @@ const Exploration = {
         } else {
             Dialogue.show(dialogueLines);
         }
+    },
 
-        // 处理效果
-        if (interaction.effect === 'break') {
-            Audio.itemBreak();
-            Renderer.shake(8);  // 物品损坏时抖动
-        } else if (interaction.effect === 'hurt') {
-            this.playerHp -= interaction.damage || 5;
-            Audio.hurt();
-            Renderer.shake(12);  // 受伤时抖动更强
-            Renderer.flicker(6);  // 闪烁
-        } else if (interaction.effect === 'gaslight') {
-            Renderer.shake(5);  // 轻微抖动
+    /**
+     * 应用互动效果
+     */
+    applyInteractionEffect(interaction) {
+        if (!interaction.effect) return;
+
+        switch (interaction.effect) {
+            case 'break':
+                Audio.itemBreak();
+                Renderer.shake(8);
+                break;
+            case 'hurt':
+                this.playerHp -= interaction.damage || 5;
+                Audio.hurt();
+                Renderer.shake(12);
+                Renderer.flicker(6);
+                break;
+            case 'gaslight':
+                Renderer.shake(5);
+                break;
+            case 'unease':
+                Renderer.shake(3);
+                break;
         }
     },
 
