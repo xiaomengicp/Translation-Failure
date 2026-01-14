@@ -61,7 +61,7 @@ const Dialogue = {
      * @param {string} text - Gaslight文字
      */
     showGaslight(text) {
-        this.gaslightText = text;
+        this.gaslightText = Array.isArray(text) ? text.join('\n') : text;
         this.gaslightAlpha = 1;
         this.gaslightBlocking = true;  // 短暂阻止输入
         Audio.gaslight();

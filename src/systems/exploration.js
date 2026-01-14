@@ -283,7 +283,8 @@ const Exploration = {
         // 多选项互动支持
         if (item.options && item.options.length > 0) {
             const optionLabels = item.options.map(o => o.label);
-            Dialogue.showOptions(optionLabels, (selectedIndex) => {
+            // Fix: Add prompt argument '每次选择都有代价...' or simple '?'
+            Dialogue.showOptions('你要做什么？', optionLabels, (selectedIndex) => {
                 const selectedOption = item.options[selectedIndex];
                 this.applyOptionEffect(selectedOption, item);
             });
