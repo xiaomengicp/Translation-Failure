@@ -136,5 +136,30 @@ const Audio = {
         this.playTone(523, 'sine', 0.15, 0.1);
         setTimeout(() => this.playTone(659, 'sine', 0.15, 0.1), 100);
         setTimeout(() => this.playTone(784, 'sine', 0.2, 0.1), 200);
+    },
+
+    /**
+     * 播放背景音乐 (占位符)
+     */
+    playBgm(trackName) {
+        // TODO: Implement simple BGM loop
+        console.log('Playing BGM:', trackName);
+    },
+
+    /**
+     * 闪烁音效
+     */
+    flicker() {
+        this.playTone(50, 'sawtooth', 0.05, 0.05);
+        this.playTone(60, 'sawtooth', 0.05, 0.05);
+    },
+
+    /**
+     * 噪音音效
+     */
+    noise() {
+        for (let i = 0; i < 5; i++) {
+            setTimeout(() => this.playTone(100 + Math.random() * 500, 'sawtooth', 0.05, 0.05), i * 20);
+        }
     }
 };
