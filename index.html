@@ -13,6 +13,24 @@
         <canvas id="game-canvas" width="640" height="360"></canvas>
     </div>
 
+    <!-- Error Handling -->
+    <script>
+        window.onerror = function (msg, url, line, col, error) {
+            var canvas = document.getElementById('game-canvas');
+            if (canvas) {
+                var ctx = canvas.getContext('2d');
+                ctx.fillStyle = 'red';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'white';
+                ctx.font = '14px monospace';
+                ctx.fillText("Runtime Error:", 10, 30);
+                ctx.fillText(msg, 10, 50);
+                ctx.fillText("Line: " + line, 10, 70);
+            }
+            console.error("Game Error:", msg, error);
+        };
+    </script>
+
     <!-- Core -->
     <script src="src/core/renderer.js?v=3"></script>
     <script src="src/core/input.js?v=3"></script>
