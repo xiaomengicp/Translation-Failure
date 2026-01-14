@@ -39,7 +39,7 @@ const Exploration = {
      * 初始化探索系统
      */
     init() {
-        this.enterRoom('BEDROOM');
+        this.enterRoom('BEDROOM_1');
     },
 
     /**
@@ -157,9 +157,8 @@ const Exploration = {
             return;
         }
 
-        // 检查门是否锁着
-        const doorItem = ITEMS[doorId];
-        if (doorItem && doorItem.locked && !this.flags.hasKey) {
+        // 检查门是否锁着（从doorLink检查）
+        if (doorLink.locked && !this.flags.hasKey) {
             Dialogue.show(['门是锁着的。你需要钥匙。']);
             Audio.cancel();
             return;

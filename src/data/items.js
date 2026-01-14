@@ -92,48 +92,74 @@ const ITEMS = {
         action: '靠近',
         result: '温暖的光芒包围了你。\n你感到一丝安慰。\n\n【进度已保存】',
         effect: 'save'
-        // 存档点没有gaslight，它是唯一善意的东西
     },
 
-    // ========== 门 ==========
-    // 门在rooms.js的doorLinks中定义目的地
-    // 这里只定义门的视觉和描述
-    DOOR_HALL: {
-        id: 'DOOR_HALL',
-        name: '门',
-        examine: '门上写着"走廊"。',
-        type: 'door'
+    // ========== 客厅物品 ==========
+    SOFA: {
+        id: 'SOFA',
+        name: '沙发',
+        examine: '这是他的位置。你不该坐在这里。',
+        action: '坐下',
+        result: '你刚坐下，就听到脚步声...\n你赶紧站起来。',
+        effect: 'unease',
+        gaslight: '【你知道这不是你的位置】'
     },
-    DOOR_BED: {
-        id: 'DOOR_BED',
-        name: '门',
-        examine: '门上写着"卧室"。',
-        type: 'door'
+
+    TV: {
+        id: 'TV',
+        name: '电视',
+        examine: '电视是关着的。屏幕上好像有什么...',
+        action: '打开',
+        result: '你按下开关...\n屏幕闪烁了一下，然后碎了。\n你又弄坏了东西。',
+        effect: 'break',
+        gaslight: '【你碰什么坏什么】'
     },
-    DOOR_BATH: {
-        id: 'DOOR_BATH',
-        name: '门',
-        examine: '门上写着"浴室"。',
-        type: 'door'
+
+    WINDOW: {
+        id: 'WINDOW',
+        name: '窗户',
+        examine: '窗外好像有什么东西在动...',
+        action: '查看',
+        result: '你看向窗外...\n什么都没有。\n或者说，你不应该看到任何东西。',
+        effect: 'gaslight_only',
+        gaslight: '【孩子，那只是你的想象】\n【你总是看到不存在的东西】'
     },
-    DOOR_KITCHEN: {
-        id: 'DOOR_KITCHEN',
-        name: '门',
-        examine: '门上写着"厨房"。',
-        type: 'door'
+
+    // ========== 卧室2物品 ==========
+    BED_BROKEN: {
+        id: 'BED_BROKEN',
+        name: '破旧的床',
+        examine: '这张床看起来很旧了...好像是搬家前的。',
+        action: '躺下',
+        result: '你试着躺下...\n床架发出吱呀声，然后断裂了。\n这张床早就坏了。',
+        effect: 'hurt',
+        damage: 5,
+        gaslight: '【你不该碰这些旧东西】'
     },
-    DOOR_MOM: {
-        id: 'DOOR_MOM',
+
+    // ========== 储藏室物品 ==========
+    BOXES: {
+        id: 'BOXES',
+        name: '箱子',
+        examine: '一堆落满灰尘的箱子。里面装着什么？',
+        action: '打开',
+        result: '你打开一个箱子...\n里面空空如也。\n或者，你不记得里面有什么了。',
+        effect: 'unease',
+        gaslight: '【你在找什么？】\n【这里什么都没有】'
+    },
+
+    // ========== 门（通用） ==========
+    DOOR_UP: { id: 'DOOR_UP', name: '门', type: 'door' },
+    DOOR_DOWN: { id: 'DOOR_DOWN', name: '门', type: 'door' },
+    DOOR_LEFT: { id: 'DOOR_LEFT', name: '门', type: 'door' },
+    DOOR_RIGHT: { id: 'DOOR_RIGHT', name: '门', type: 'door' },
+    DOOR_MOM: { id: 'DOOR_MOM', name: '妈妈的门', type: 'door' },
+    DOOR_MOM_LOCK: {
+        id: 'DOOR_MOM_LOCK',
         name: '妈妈的门',
-        examine: '门是锁着的。你听到里面有声音。',
+        examine: '门是锁着的。你需要钥匙。',
         type: 'door',
         locked: true
-    },
-    DOOR_BACK: {
-        id: 'DOOR_BACK',
-        name: '门',
-        examine: '回去的路？',
-        type: 'door'
     }
 };
 
