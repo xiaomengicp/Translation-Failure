@@ -110,14 +110,13 @@ const ROOMS = {
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         ],
 
-        // 关键的扭曲：浴室门标签说"去厨房"，实际回到卧室
-        // 这打破了玩家对空间的期望
+        // 关键扭曲：浴室门标签说"厨房"，实际去走廊！
         doorLinks: {
             'DOOR_KITCHEN': {
                 label: '厨房',         // 标签说"回厨房"
-                target: 'BEDROOM',    // 实际回到卧室起点
+                target: 'HALLWAY',    // 实际去走廊（推进剧情）
                 spawnX: 5,
-                spawnY: 5
+                spawnY: 8
             }
         },
 
