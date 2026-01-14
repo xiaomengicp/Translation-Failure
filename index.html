@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Translation Failure | 翻译失败</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas" width="640" height="360"></canvas>
+    </div>
+    
+    <!-- Core -->
+    <script src="src/core/renderer.js"></script>
+    <script src="src/core/input.js"></script>
+    
+    <!-- Utils -->
+    <script src="src/utils/draw.js"></script>
+    <script src="src/utils/audio.js"></script>
+    
+    <!-- Data -->
+    <script src="src/data/rooms.js"></script>
+    <script src="src/data/items.js"></script>
+    <script src="src/data/battles.js"></script>
+    
+    <!-- Systems -->
+    <script src="src/systems/dialogue.js"></script>
+    <script src="src/systems/exploration.js"></script>
+    <script src="src/systems/battle.js"></script>
+    
+    <!-- Main (must be last) -->
+    <script src="src/main.js"></script>
+</body>
+</html>
