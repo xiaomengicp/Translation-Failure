@@ -26,7 +26,8 @@ const Exploration = {
         keyFlyCount: 0,
         hasKey: false,
         savedGame: false,
-        battleTriggered: false
+        battleTriggered: false,
+        keyJustFlew: false
     },
 
     // 当前靠近的物品
@@ -58,6 +59,9 @@ const Exploration = {
         // 设置玩家位置
         this.playerX = spawnX !== null ? spawnX : room.spawnX;
         this.playerY = spawnY !== null ? spawnY : room.spawnY;
+
+        // 重置钥匙飞走状态（进入新房间，钥匙重新出现）
+        this.flags.keyJustFlew = false;
 
         // 播放音效
         Audio.step();
@@ -224,10 +228,10 @@ const Exploration = {
 
         // 特殊处理：存档点
         if (itemId === 'SAVE') {
+            // 先存档，再显示对话
+            this.saveGame();
             Audio.save();
-            Dialogue.show([item.result], () => {
-                this.saveGame();
-            });
+            Dialogue.show([item.result]);
             return;
         }
 
@@ -276,18 +280,27 @@ const Exploration = {
             return;
         }
 
+        // 如果钥匙刚飞走了，不能交互
+        if (this.flags.keyJustFlew) {
+            return;
+        }
+
         this.flags.keyFlyCount++;
 
         if (this.flags.keyFlyCount >= item.maxFlyCount) {
             // 终于拿到钥匙
             this.flags.hasKey = true;
-            this.nearbyItem = null;  // 清除nearby，防止再次交互
+            this.nearbyItem = null;
             Audio.confirm();
+            Renderer.shake(4);
             Dialogue.show([item.resultFinal]);
         } else {
-            // 钥匙飞走
+            // 钥匙飞走 - 暂时隐藏钥匙
+            this.flags.keyJustFlew = true;
+            this.nearbyItem = null;
             Audio.keyFly();
-            Renderer.shake(6);
+            Renderer.shake(8);
+            Renderer.flicker(4);
             Dialogue.show([item.result], () => {
                 Dialogue.showGaslight(item.gaslight);
             });
@@ -369,8 +382,9 @@ const Exploration = {
                     // 地板 - 有纹理
                     Draw.floor(px, py, GRID.TILE_SIZE);
                 } else if (typeof tile === 'string') {
-                    // 如果已经拿到钥匙，不绘制钥匙
-                    if (tile === 'KEY' && this.flags.hasKey) {
+                    // 如果已经拿到钥匙，或钥匙刚飞走，不绘制钥匙
+                    if (tile === 'KEY' && (this.flags.hasKey || this.flags.keyJustFlew)) {
+                        Draw.floor(px, py, GRID.TILE_SIZE);  // 绘制地板代替
                         continue;
                     }
                     if (tile.startsWith('DOOR')) {

@@ -70,20 +70,33 @@ const Draw = {
         // 基于位置的伪随机
         const rand = (x * 11 + y * 17) % 100;
 
+        // 角落有一点蓝色暗示
+        if (rand < 30) {
+            ctx.fillStyle = 'rgba(74, 95, 127, 0.15)';
+            ctx.fillRect(x, y, size, 2);
+        }
+
         // 偶尔有一些划痕
-        if (rand < 15) {
-            ctx.strokeStyle = 'rgba(74, 95, 127, 0.2)';  // 淡蓝色划痕
+        if (rand > 20 && rand < 50) {
+            ctx.strokeStyle = 'rgba(74, 95, 127, 0.3)';  // 淡蓝色划痕
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(x + 4 + this.jitter(2), y + 4 + this.jitter(2));
-            ctx.lineTo(x + size - 4 + this.jitter(2), y + size - 4 + this.jitter(2));
+            ctx.moveTo(x + 4, y + 4);
+            ctx.lineTo(x + size - 4, y + size - 4);
             ctx.stroke();
         }
 
         // 偶尔有灰尘点
-        if (rand > 75) {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-            ctx.fillRect(x + 10 + this.jitter(4), y + 10 + this.jitter(4), 2, 2);
+        if (rand > 60) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.fillRect(x + 10, y + 10, 3, 3);
+        }
+
+        // 边缘线
+        if (rand > 80) {
+            ctx.strokeStyle = 'rgba(74, 95, 127, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
         }
     },
 
