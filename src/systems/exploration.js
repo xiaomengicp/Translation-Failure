@@ -316,9 +316,14 @@ const Exploration = {
         // 处理效果
         if (interaction.effect === 'break') {
             Audio.itemBreak();
+            Renderer.shake(8);  // 物品损坏时抖动
         } else if (interaction.effect === 'hurt') {
             this.playerHp -= interaction.damage || 5;
             Audio.hurt();
+            Renderer.shake(12);  // 受伤时抖动更强
+            Renderer.flicker(6);  // 闪烁
+        } else if (interaction.effect === 'gaslight') {
+            Renderer.shake(5);  // 轻微抖动
         }
     },
 
@@ -456,8 +461,13 @@ const Exploration = {
         const offsetX = (Renderer.WIDTH - roomPixelWidth) / 2;
         const offsetY = (Renderer.HEIGHT - roomPixelHeight) / 2;
 
-        // 绘制房间背景
-        Renderer.drawRect(offsetX, offsetY, roomPixelWidth, roomPixelHeight, Renderer.COLORS.BLUE);
+        // 绘制墙壁（先画，作为背景层）
+        Draw.roomWalls(offsetX, offsetY, roomPixelWidth, roomPixelHeight);
+
+        // 绘制地板（棋盘格纹理）
+        Draw.roomFloor(offsetX, offsetY, roomPixelWidth, roomPixelHeight, Renderer.TILE_SIZE);
+
+        // 绘制房间边框
         Renderer.drawRectOutline(offsetX, offsetY, roomPixelWidth, roomPixelHeight, Renderer.COLORS.WHITE, 2);
 
         // 绘制网格（可选，用于调试）

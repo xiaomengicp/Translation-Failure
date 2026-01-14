@@ -16,8 +16,9 @@ const ITEMS = {
 
         interactions: {
             check: {
-                prompt: '检查床',
-                result: '你靠近床...\n床突然塌陷了。',
+                prompt: '躺下来',
+                result: '你试图躺下...\n床突然塌陷了。\n\n你总是把东西弄坏。',
+                gaslight: '【你太重了】\n【你不配休息】',
                 effect: 'break'
             }
         }
@@ -44,8 +45,9 @@ const ITEMS = {
 
         interactions: {
             check: {
-                prompt: '检查书桌',
-                result: '你打开抽屉...\n抽屉突然掉下来，东西散落一地。',
+                prompt: '找一找',
+                result: '你打开抽屉...\n抽屉突然掉下来，东西散落一地。\n\n又是你的错。',
+                gaslight: '【你就是做不好任何事情】',
                 effect: 'break'
             }
         }
@@ -113,12 +115,13 @@ const ITEMS = {
     sofa: {
         id: 'sofa',
         name: '沙发',
-        type: 'default',
+        type: 'sofa',
 
         interactions: {
             check: {
-                prompt: '检查沙发',
-                result: '你坐下来...\n沙发发出奇怪的声音，弹簧刺入你的腿。',
+                prompt: '坐下来',
+                result: '这是他的位置。\n你不该坐在这里。\n\n沙发弹簧刺入你的腿。',
+                gaslight: '【谁让你坐这里的？】',
                 effect: 'hurt',
                 damage: 5
             }
@@ -128,13 +131,13 @@ const ITEMS = {
     tv: {
         id: 'tv',
         name: '电视',
-        type: 'default',
+        type: 'tv',
 
         interactions: {
             check: {
-                prompt: '检查电视',
-                result: '电视突然亮起...\n屏幕上是雪花噪点。\n你听到耳语声。',
-                gaslight: '【你总是听到不存在的声音】',
+                prompt: '打开电视',
+                result: '电视突然亮起...\n屏幕上是雪花噪点。\n\n你听到妈妈的声音从噪音中传来。',
+                gaslight: '【你又在做白日梦了】\n【电视根本没开】',
                 effect: 'gaslight'
             }
         }

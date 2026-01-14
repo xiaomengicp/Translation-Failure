@@ -99,6 +99,9 @@ const Game = {
      * 更新游戏状态
      */
     update() {
+        // 更新渲染器效果（shake, flicker）
+        Renderer.update();
+
         Dialogue.update();
 
         switch (this.state) {
