@@ -25,7 +25,8 @@ const Exploration = {
         gaslightCount: 0,
         keyFlyCount: 0,
         hasKey: false,
-        savedGame: false
+        savedGame: false,
+        battleTriggered: false
     },
 
     // 当前靠近的物品
@@ -62,7 +63,21 @@ const Exploration = {
         Audio.step();
 
         // 显示房间描述
-        Dialogue.show([room.description]);
+        Dialogue.show([room.description], () => {
+            // 检查是否触发战斗（第一幕结尾）
+            if (room.triggerBattle && !this.flags.battleTriggered) {
+                this.flags.battleTriggered = true;
+                // 显示战斗切入对话
+                Dialogue.show([
+                    '门后传来声音...',
+                    '【孩子... 快来...】',
+                    '【妈妈需要你...】'
+                ], () => {
+                    // 开始战斗
+                    Game.startBattle('mom_battle_1');
+                });
+            }
+        });
 
         console.log('Entered room:', roomKey);
     },

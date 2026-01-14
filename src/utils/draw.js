@@ -58,20 +58,36 @@ const Draw = {
     },
 
     /**
-     * 绘制墙壁（蓝色，不规则）
+     * 绘制墙壁（蓝色，不规则，有纹理）
      */
     wall(x, y, size) {
         const ctx = Renderer.ctx;
 
-        // 主体
+        // 主体 - 稍微深一点的蓝
         this.roughRect(x + 1, y + 1, size - 2, size - 2, Renderer.COLORS.BLUE);
 
-        // 边缘高光（白色细线，不规则）
-        if (Math.random() > 0.3) {
+        // 随机添加纹理细节
+        const rand = (x * 7 + y * 13) % 100;  // 基于位置的伪随机
+
+        // 边缘高光（白色细线）
+        if (rand < 40) {
             this.roughLine(x, y, x + size, y, Renderer.COLORS.WHITE, 1);
         }
-        if (Math.random() > 0.3) {
+        if (rand > 30 && rand < 70) {
             this.roughLine(x, y, x, y + size, Renderer.COLORS.WHITE, 1);
+        }
+
+        // 裂纹（黑色细线）
+        if (rand > 80) {
+            const crackX = x + 4 + (rand % 20);
+            const crackY = y + 4 + ((rand * 3) % 20);
+            this.roughLine(crackX, crackY, crackX + 8, crackY + 12, Renderer.COLORS.BLACK, 1);
+        }
+
+        // 污渍
+        if (rand > 60 && rand < 75) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(x + 10 + this.jitter(2), y + 15 + this.jitter(2), 12, 8);
         }
     },
 
@@ -100,75 +116,131 @@ const Draw = {
      */
     item(x, y, size, itemId) {
         const ctx = Renderer.ctx;
-        const item = ITEMS[itemId];
-
-        // 所有物品都用红色表示危险/可交互
-        // 但形状简单粗糙
-
         const cx = x + size / 2;
         const cy = y + size / 2;
 
         switch (itemId) {
             case 'BED':
-                // 床 - 一个歪歪扭扭的矩形
-                this.roughRect(x + 4, y + size / 2, size - 8, size / 2 - 4, Renderer.COLORS.RED);
+                // 床 - 床垫 + 枕头 + 被子皱褶
+                // 床架
+                this.roughRect(x + 2, y + size - 12, size - 4, 10, Renderer.COLORS.BLUE);
+                // 床垫
+                this.roughRect(x + 4, y + size / 2 - 2, size - 8, size / 2 - 8, Renderer.COLORS.RED);
+                // 枕头
+                this.roughRect(x + 6, y + size / 2 - 6, 12, 8, Renderer.COLORS.WHITE);
+                // 被子皱褶
+                this.roughLine(x + 10, y + size / 2, x + 14, y + size - 14, Renderer.COLORS.BLACK, 1);
+                this.roughLine(x + 20, y + size / 2 + 2, x + 26, y + size - 12, Renderer.COLORS.BLACK, 1);
                 break;
 
             case 'DESK':
-                // 书桌 - 一条线加支撑
-                this.roughLine(x + 4, y + size / 2, x + size - 4, y + size / 2, Renderer.COLORS.RED, 3);
-                this.roughLine(x + 8, y + size / 2, x + 8, y + size - 4, Renderer.COLORS.RED, 2);
-                this.roughLine(x + size - 8, y + size / 2, x + size - 8, y + size - 4, Renderer.COLORS.RED, 2);
+                // 书桌 + 抽屉 + 上面的东西
+                // 桌面
+                this.roughRect(x + 2, y + size / 2 - 4, size - 4, 6, Renderer.COLORS.BLUE);
+                // 桌腿
+                this.roughLine(x + 6, y + size / 2, x + 6, y + size - 2, Renderer.COLORS.BLUE, 3);
+                this.roughLine(x + size - 6, y + size / 2, x + size - 6, y + size - 2, Renderer.COLORS.BLUE, 3);
+                // 抽屉把手
+                ctx.fillStyle = Renderer.COLORS.RED;
+                ctx.fillRect(x + size / 2 - 3 + this.jitter(), y + size / 2 + 6 + this.jitter(), 6, 3);
+                // 桌上的东西（书/纸）
+                this.roughRect(x + 8 + this.jitter(2), y + size / 2 - 10, 8, 6, Renderer.COLORS.WHITE);
+                this.roughLine(x + 10, y + size / 2 - 8, x + 14, y + size / 2 - 6, Renderer.COLORS.BLACK, 1);
                 break;
 
             case 'PHOTO':
-                // 照片 - 一个倾斜的方框
+                // 照片 - 倾斜的相框 + 裂纹 + 模糊的脸
                 ctx.save();
                 ctx.translate(cx, cy);
-                ctx.rotate(0.1 + this.jitter(0.05));
-                this.roughRect(-8, -10, 16, 20, Renderer.COLORS.RED);
+                ctx.rotate(0.15 + this.jitter(0.05));
+                // 相框
+                this.roughRect(-12, -14, 24, 28, Renderer.COLORS.BLUE);
+                // 照片本身
+                this.roughRect(-10, -12, 20, 24, Renderer.COLORS.WHITE);
+                // 人影（模糊）
+                ctx.fillStyle = Renderer.COLORS.BLACK;
+                ctx.fillRect(-6 + this.jitter(), -4 + this.jitter(), 4, 8);
+                ctx.fillRect(2 + this.jitter(), -2 + this.jitter(), 4, 6);
+                // 被抹掉的脸
+                this.roughLine(-4, -4, 4, 0, Renderer.COLORS.RED, 2);
                 ctx.restore();
                 break;
 
             case 'KNIFE':
-                // 刀 - 一条斜线
-                this.roughLine(x + 6, y + 6, x + size - 6, y + size - 6, Renderer.COLORS.RED, 3);
+                // 刀 - 刀刃 + 刀柄 + 反光
+                // 刀柄
+                this.roughRect(x + 4, y + size - 14, 8, 12, Renderer.COLORS.BLUE);
+                // 刀刃
+                ctx.fillStyle = Renderer.COLORS.WHITE;
+                ctx.beginPath();
+                ctx.moveTo(x + 8 + this.jitter(), y + size - 14);
+                ctx.lineTo(x + size - 6 + this.jitter(), y + 6 + this.jitter());
+                ctx.lineTo(x + 12 + this.jitter(), y + size - 14);
+                ctx.closePath();
+                ctx.fill();
+                // 血迹暗示
+                this.roughLine(x + 14, y + 12, x + 18, y + 18, Renderer.COLORS.RED, 1);
                 break;
 
             case 'MIRROR':
-                // 镜子 - 一个椭圆形（用矩形近似）
-                this.roughRect(x + 6, y + 4, size - 12, size - 8, Renderer.COLORS.RED);
-                // 裂纹
-                this.roughLine(x + 10, y + 8, x + size - 10, y + size - 8, Renderer.COLORS.BLACK, 1);
+                // 镜子 - 镜框 + 反光 + 裂纹 + 模糊影子
+                // 镜框
+                this.roughRect(x + 4, y + 2, size - 8, size - 4, Renderer.COLORS.BLUE);
+                // 镜面
+                this.roughRect(x + 6, y + 4, size - 12, size - 8, Renderer.COLORS.WHITE);
+                // 裂纹（多条）
+                this.roughLine(x + 10, y + 6, x + size - 8, y + size - 10, Renderer.COLORS.BLACK, 1);
+                this.roughLine(x + size / 2, y + 8, x + 12, y + size - 8, Renderer.COLORS.BLACK, 1);
+                // 影子（模糊的轮廓）
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.fillRect(cx - 4 + this.jitter(2), cy - 2 + this.jitter(2), 8, 12);
                 break;
 
             case 'KEY':
-                // 钥匙 - 一个圆加一条线
-                ctx.fillStyle = Renderer.COLORS.RED;
+                // 钥匙 - 圆环 + 齿 + 闪光
+                // 圆环
+                ctx.strokeStyle = Renderer.COLORS.RED;
+                ctx.lineWidth = 3;
                 ctx.beginPath();
-                ctx.arc(cx - 4 + this.jitter(), cy - 4 + this.jitter(), 6, 0, Math.PI * 2);
-                ctx.fill();
-                this.roughLine(cx, cy, cx + 10, cy + 8, Renderer.COLORS.RED, 2);
+                ctx.arc(cx - 6 + this.jitter(), cy - 4 + this.jitter(), 8, 0, Math.PI * 2);
+                ctx.stroke();
+                // 钥匙身体
+                this.roughLine(cx - 2, cy, cx + 12, cy + 2, Renderer.COLORS.RED, 3);
+                // 钥匙齿
+                this.roughLine(cx + 8, cy, cx + 8, cy + 6, Renderer.COLORS.RED, 2);
+                this.roughLine(cx + 12, cy, cx + 12, cy + 4, Renderer.COLORS.RED, 2);
+                // 闪光
+                ctx.fillStyle = Renderer.COLORS.WHITE;
+                ctx.fillRect(cx - 10 + this.jitter(), cy - 8 + this.jitter(), 3, 3);
                 break;
 
             case 'SAVE':
-                // 存档点 - 唯一温暖的光
-                // 用白色，不是红色
-                ctx.fillStyle = Renderer.COLORS.WHITE;
+                // 存档点 - 温暖的光 + 脉动效果
+                const pulse = Math.sin(Date.now() / 200) * 2;
+                // 外圈光晕
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
                 ctx.beginPath();
-                ctx.arc(cx + this.jitter(), cy + this.jitter(), 8, 0, Math.PI * 2);
+                ctx.arc(cx, cy, 18 + pulse, 0, Math.PI * 2);
                 ctx.fill();
-                // 光晕
+                // 中圈
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
                 ctx.beginPath();
-                ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+                ctx.arc(cx, cy, 12 + pulse / 2, 0, Math.PI * 2);
+                ctx.fill();
+                // 核心
+                ctx.fillStyle = Renderer.COLORS.WHITE;
+                ctx.beginPath();
+                ctx.arc(cx + this.jitter(1), cy + this.jitter(1), 6, 0, Math.PI * 2);
                 ctx.fill();
                 break;
 
             default:
-                // 默认 - 一个问号形状的点
+                // 默认 - 问号
                 ctx.fillStyle = Renderer.COLORS.RED;
-                ctx.fillRect(cx - 4 + this.jitter(), cy - 4 + this.jitter(), 8, 8);
+                this.roughRect(cx - 6, cy - 8, 12, 16, Renderer.COLORS.RED);
+                ctx.fillStyle = Renderer.COLORS.BLACK;
+                ctx.font = '12px monospace';
+                ctx.fillText('?', cx - 3, cy + 4);
         }
     },
 
