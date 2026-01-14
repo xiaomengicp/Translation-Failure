@@ -115,8 +115,12 @@ const Exploration = {
         const newX = this.playerX + dx;
         const newY = this.playerY + dy;
 
+        // 获取房间实际尺寸
+        const roomHeight = this.currentRoom.layout.length;
+        const roomWidth = this.currentRoom.layout[0].length;
+
         // 边界检查
-        if (newX < 0 || newX >= GRID.WIDTH || newY < 0 || newY >= GRID.HEIGHT) {
+        if (newX < 0 || newX >= roomWidth || newY < 0 || newY >= roomHeight) {
             return;
         }
 
@@ -175,6 +179,9 @@ const Exploration = {
      * 检查附近物品
      */
     checkNearbyItems() {
+        const roomHeight = this.currentRoom.layout.length;
+        const roomWidth = this.currentRoom.layout[0].length;
+
         const neighbors = [
             { x: this.playerX, y: this.playerY - 1 },
             { x: this.playerX, y: this.playerY + 1 },
@@ -185,9 +192,13 @@ const Exploration = {
         this.nearbyItem = null;
 
         for (const n of neighbors) {
-            if (n.x >= 0 && n.x < GRID.WIDTH && n.y >= 0 && n.y < GRID.HEIGHT) {
+            if (n.x >= 0 && n.x < roomWidth && n.y >= 0 && n.y < roomHeight) {
                 const tile = this.currentRoom.layout[n.y][n.x];
                 if (typeof tile === 'string' && ITEMS[tile] && !tile.startsWith('DOOR')) {
+                    // 如果已经拿到钥匙，跳过钥匙
+                    if (tile === 'KEY' && this.flags.hasKey) {
+                        continue;
+                    }
                     this.nearbyItem = tile;
                     break;
                 }
@@ -213,8 +224,10 @@ const Exploration = {
 
         // 特殊处理：存档点
         if (itemId === 'SAVE') {
-            this.saveGame();
-            Dialogue.show([item.result]);
+            Audio.save();
+            Dialogue.show([item.result], () => {
+                this.saveGame();
+            });
             return;
         }
 
@@ -257,19 +270,27 @@ const Exploration = {
      * 处理钥匙互动（特殊：会飞走）
      */
     handleKeyInteraction(item) {
+        // 如果已经拿到钥匙，不再交互
+        if (this.flags.hasKey) {
+            Dialogue.show(['你已经有钥匙了。']);
+            return;
+        }
+
         this.flags.keyFlyCount++;
 
         if (this.flags.keyFlyCount >= item.maxFlyCount) {
             // 终于拿到钥匙
             this.flags.hasKey = true;
+            this.nearbyItem = null;  // 清除nearby，防止再次交互
+            Audio.confirm();
             Dialogue.show([item.resultFinal]);
         } else {
             // 钥匙飞走
             Audio.keyFly();
+            Renderer.shake(6);
             Dialogue.show([item.result], () => {
                 Dialogue.showGaslight(item.gaslight);
             });
-            Renderer.shake(6);
         }
     },
 
@@ -324,15 +345,19 @@ const Exploration = {
         // 清屏
         Renderer.clear(Renderer.COLORS.BLACK);
 
+        // 获取房间实际尺寸（从layout读取）
+        const roomHeight = room.layout.length;
+        const roomWidth = room.layout[0].length;
+
         // 计算偏移（居中显示）
-        const roomPixelWidth = GRID.WIDTH * GRID.TILE_SIZE;
-        const roomPixelHeight = GRID.HEIGHT * GRID.TILE_SIZE;
+        const roomPixelWidth = roomWidth * GRID.TILE_SIZE;
+        const roomPixelHeight = roomHeight * GRID.TILE_SIZE;
         const offsetX = (Renderer.WIDTH - roomPixelWidth) / 2;
         const offsetY = (Renderer.HEIGHT - roomPixelHeight) / 2;
 
         // 渲染网格
-        for (let y = 0; y < GRID.HEIGHT; y++) {
-            for (let x = 0; x < GRID.WIDTH; x++) {
+        for (let y = 0; y < roomHeight; y++) {
+            for (let x = 0; x < roomWidth; x++) {
                 const tile = room.layout[y][x];
                 const px = offsetX + x * GRID.TILE_SIZE;
                 const py = offsetY + y * GRID.TILE_SIZE;
@@ -343,6 +368,10 @@ const Exploration = {
                 } else if (tile === 0) {
                     // 地板 - 黑色（不画，用背景）
                 } else if (typeof tile === 'string') {
+                    // 如果已经拿到钥匙，不绘制钥匙
+                    if (tile === 'KEY' && this.flags.hasKey) {
+                        continue;
+                    }
                     if (tile.startsWith('DOOR')) {
                         // 门 - 白色
                         Draw.door(px, py, GRID.TILE_SIZE);
