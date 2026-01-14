@@ -322,10 +322,10 @@ const Exploration = {
 
         try {
             localStorage.setItem('translation_failure_save', JSON.stringify(saveData));
-            Audio.save();
-            console.log('Game saved');
+            console.log('Game saved successfully');
         } catch (e) {
             console.error('Save failed:', e);
+            // 这里不抛出错误，防止游戏卡死
         }
     },
 

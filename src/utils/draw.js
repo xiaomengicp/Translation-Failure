@@ -63,22 +63,22 @@ const Draw = {
     floor(x, y, size) {
         const ctx = Renderer.ctx;
 
-        // 基础黑色
-        ctx.fillStyle = Renderer.COLORS.BLACK;
+        // 基础底色 - 不完全是黑色，稍微带点蓝灰，确保并非漆黑一片
+        ctx.fillStyle = '#10141a';
         ctx.fillRect(x, y, size, size);
 
         // 基于位置的伪随机
         const rand = (x * 11 + y * 17) % 100;
 
-        // 角落有一点蓝色暗示
-        if (rand < 30) {
-            ctx.fillStyle = 'rgba(74, 95, 127, 0.15)';
-            ctx.fillRect(x, y, size, 2);
+        // 蓝色地砖纹理 (降低随机阈值，提高可见度)
+        if (rand < 40) {
+            ctx.fillStyle = 'rgba(74, 95, 127, 0.4)'; // 40% opacity
+            ctx.fillRect(x + 2, y + 2, size - 4, size - 4);
         }
 
-        // 偶尔有一些划痕
-        if (rand > 20 && rand < 50) {
-            ctx.strokeStyle = 'rgba(74, 95, 127, 0.3)';  // 淡蓝色划痕
+        // 明显的划痕
+        if (rand > 30 && rand < 60) {
+            ctx.strokeStyle = '#4A5F7F'; // Solid blue
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(x + 4, y + 4);
@@ -86,17 +86,10 @@ const Draw = {
             ctx.stroke();
         }
 
-        // 偶尔有灰尘点
-        if (rand > 60) {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-            ctx.fillRect(x + 10, y + 10, 3, 3);
-        }
-
-        // 边缘线
-        if (rand > 80) {
-            ctx.strokeStyle = 'rgba(74, 95, 127, 0.2)';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+        // 灰尘/噪点
+        if (rand > 70) {
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(x + size / 2, y + size / 2, 2, 2);
         }
     },
 
@@ -258,23 +251,51 @@ const Draw = {
                 break;
 
             case 'SAVE':
-                // 存档点 - 温暖的光 + 脉动效果
-                const pulse = Math.sin(Date.now() / 200) * 2;
-                // 外圈光晕
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+                // 存档点 - 脉冲光圈
+                const time = Date.now() / 500;
+                const radius = 10 + Math.sin(time) * 2;
+                ctx.strokeStyle = Renderer.COLORS.WHITE;
+                ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.arc(cx, cy, 18 + pulse, 0, Math.PI * 2);
-                ctx.fill();
-                // 中圈
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-                ctx.beginPath();
-                ctx.arc(cx, cy, 12 + pulse / 2, 0, Math.PI * 2);
-                ctx.fill();
-                // 核心
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // 内部光点
+                ctx.fillStyle = Renderer.COLORS.RED;
+                ctx.fillRect(cx - 2 + this.jitter(), cy - 2 + this.jitter(), 4, 4);
+                break;
+
+            case 'SOFA':
+                this.roughRect(x + 2, y + size / 2, size - 4, size / 2 - 2, Renderer.COLORS.BLUE);
+                this.roughRect(x + 2, y + size / 2 - 8, size - 4, 10, Renderer.COLORS.BLUE);
+                break;
+
+            case 'TV':
+                this.roughRect(x + 2, y + 4, size - 4, size - 8, Renderer.COLORS.BLUE);
+                // 屏幕
+                this.roughRect(x + 6, y + 8, size - 12, size - 16, Renderer.COLORS.BLACK);
+                // 噪音
                 ctx.fillStyle = Renderer.COLORS.WHITE;
-                ctx.beginPath();
-                ctx.arc(cx + this.jitter(1), cy + this.jitter(1), 6, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.fillRect(x + 10 + this.jitter(5), y + 10 + this.jitter(5), 4, 4);
+                break;
+
+            case 'WINDOW':
+                this.roughRect(x + 2, y + 2, size - 4, size - 4, Renderer.COLORS.BLUE);
+                this.roughLine(x + size / 2, y + 2, x + size / 2, y + size - 2, Renderer.COLORS.BLUE, 2);
+                this.roughLine(x + 2, y + size / 2, x + size - 2, y + size / 2, Renderer.COLORS.BLUE, 2);
+                break;
+
+            case 'BED_BROKEN':
+                // 破床
+                this.roughRect(x + 2, y + size - 12, size - 4, 10, Renderer.COLORS.BLUE);
+                // 裂纹
+                this.roughLine(x + 2, y + size - 6, x + size - 2, y + size - 4, Renderer.COLORS.BLACK, 2);
+                break;
+
+            case 'BOXES':
+                // 两个箱子
+                this.roughRect(x + 4, y + 12, 16, 16, Renderer.COLORS.BLUE);
+                this.roughRect(x + 16, y + 8, 14, 14, Renderer.COLORS.BLUE);
                 break;
 
             default:
