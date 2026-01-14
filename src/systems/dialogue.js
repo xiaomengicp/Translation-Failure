@@ -119,7 +119,7 @@ const Dialogue = {
             }
             if (Input.isJustPressed('confirm')) {
                 // 消费输入，防止Exploration再次处理
-                Input.clear('confirm');
+                if (Input.clear) Input.clear('confirm');
 
                 Audio.confirm();
                 const callback = this.onOptionSelect;
@@ -133,7 +133,7 @@ const Dialogue = {
         // 普通对话模式：按确认继续
         if (Input.isJustPressed('confirm')) {
             // 消费输入
-            Input.clear('confirm');
+            if (Input.clear) Input.clear('confirm');
 
             this.currentLine++;
 
