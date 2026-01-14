@@ -5,11 +5,12 @@
  * 1. 网格移动 - 玩家在10x10网格中移动
  * 2. 门传送 - 踩到门格子时，根据doorLinks传送到错误的房间
  * 3. 意图颠倒 - 物品交互结果与UI提示相反
+ * 4. 动态物品 - 钥匙位置动态变化
  */
 
 const Exploration = {
     // 当前房间
-    currentRoomKey: 'BEDROOM',
+    currentRoomKey: 'BEDROOM_1',
     currentRoom: null,
 
     // 玩家网格位置
@@ -20,6 +21,17 @@ const Exploration = {
     playerHp: 100,
     maxHp: 100,
 
+    // 钥匙生成位置字典
+    KEY_POSITIONS: {
+        'BEDROOM_1': { x: 5, y: 5 },
+        'LIVING_ROOM': { x: 6, y: 5 },
+        'BEDROOM_2': { x: 5, y: 5 },
+        'HALLWAY': { x: 7, y: 4 },
+        'MOM_DOOR': { x: 7, y: 3 },
+        'KEY_ROOM_1': { x: 4, y: 4 },
+        'KEY_ROOM_2': { x: 4, y: 4 }
+    },
+
     // 游戏进度
     flags: {
         gaslightCount: 0,
@@ -27,7 +39,8 @@ const Exploration = {
         hasKey: false,
         savedGame: false,
         battleTriggered: false,
-        keyJustFlew: false
+        keyJustFlew: false,
+        currentKeyRoom: 'KEY_ROOM_1' // 初始位置在储藏室，增加寻找难度
     },
 
     // 当前靠近的物品
@@ -40,7 +53,20 @@ const Exploration = {
      * 初始化探索系统
      */
     init() {
+        // 重置状态
+        this.flags = {
+            gaslightCount: 0,
+            keyFlyCount: 0,
+            hasKey: false,
+            savedGame: false,
+            battleTriggered: false,
+            keyJustFlew: false,
+            currentKeyRoom: 'KEY_ROOM_1'
+        };
+        this.playerHp = 100;
+
         this.enterRoom('BEDROOM_1');
+        Audio.playBgm('exploration');
     },
 
     /**
@@ -187,10 +213,11 @@ const Exploration = {
         const roomWidth = this.currentRoom.layout[0].length;
 
         const neighbors = [
-            { x: this.playerX, y: this.playerY - 1 },
-            { x: this.playerX, y: this.playerY + 1 },
-            { x: this.playerX - 1, y: this.playerY },
-            { x: this.playerX + 1, y: this.playerY }
+            { x: this.playerX, y: this.playerY },     // 当前位置
+            { x: this.playerX, y: this.playerY - 1 }, // 上
+            { x: this.playerX, y: this.playerY + 1 }, // 下
+            { x: this.playerX - 1, y: this.playerY }, // 左
+            { x: this.playerX + 1, y: this.playerY }  // 右
         ];
 
         this.nearbyItem = null;
@@ -198,13 +225,27 @@ const Exploration = {
         for (const n of neighbors) {
             if (n.x >= 0 && n.x < roomWidth && n.y >= 0 && n.y < roomHeight) {
                 const tile = this.currentRoom.layout[n.y][n.x];
+
+                // 检查普通物品
                 if (typeof tile === 'string' && ITEMS[tile] && !tile.startsWith('DOOR')) {
-                    // 如果已经拿到钥匙，跳过钥匙
+                    // 如果已经拿到钥匙，且该格子是旧钥匙(如果有的话)，跳过
                     if (tile === 'KEY' && this.flags.hasKey) {
                         continue;
                     }
                     this.nearbyItem = tile;
                     break;
+                }
+
+                // 检查动态钥匙
+                if (!this.flags.hasKey &&
+                    this.flags.currentKeyRoom === this.currentRoom.id &&
+                    !this.flags.keyJustFlew) {
+
+                    const keyPos = this.KEY_POSITIONS[this.currentRoom.id];
+                    if (keyPos && n.x === keyPos.x && n.y === keyPos.y) {
+                        this.nearbyItem = 'KEY';
+                        break;
+                    }
                 }
             }
         }
@@ -212,11 +253,16 @@ const Exploration = {
 
     /**
      * 处理物品互动
-     * 意图颠倒：UI显示的action，实际执行的是破坏性result
      */
     handleInteraction() {
         const itemId = this.nearbyItem;
-        const item = ITEMS[itemId];
+        // 特殊：动态钥匙不在ITEMS表中可能有问题？暂时认为KEY在
+        let item = ITEMS[itemId];
+
+        // 如果是动态钥匙，手动构造item
+        if (itemId === 'KEY' && !item) {
+            item = ITEMS['KEY'];
+        }
 
         if (!item) return;
 
@@ -228,19 +274,27 @@ const Exploration = {
 
         // 特殊处理：存档点
         if (itemId === 'SAVE') {
-            // 先存档，再显示对话
             this.saveGame();
             Audio.save();
             Dialogue.show([item.result]);
             return;
         }
 
-        // 先应用效果
+        // 多选项互动支持
+        if (item.options && item.options.length > 0) {
+            const optionLabels = item.options.map(o => o.label);
+            Dialogue.showOptions(optionLabels, (selectedIndex) => {
+                const selectedOption = item.options[selectedIndex];
+                this.applyOptionEffect(selectedOption, item);
+            });
+            return;
+        }
+
+        // 旧的单一互动逻辑
         this.applyItemEffect(item);
 
-        // 显示结果（不是action，是破坏性的result）
+        // 显示结果
         Dialogue.show([item.result], () => {
-            // 如果有gaslight，显示
             if (item.gaslight) {
                 Dialogue.showGaslight(item.gaslight);
                 this.flags.gaslightCount++;
@@ -249,7 +303,34 @@ const Exploration = {
     },
 
     /**
-     * 应用物品效果
+     * 应用选项效果
+     */
+    applyOptionEffect(option, parentItem) {
+        // 播放动作音效
+        if (option.actionSfx) Audio[option.actionSfx]();
+
+        // 如果有破坏效果
+        if (option.effect === 'break') {
+            Audio.itemBreak();
+            Renderer.shake(8);
+        } else if (option.effect === 'hurt') {
+            this.playerHp -= option.damage || 5;
+            Audio.hurt();
+            Renderer.shake(12);
+            Renderer.flicker(6);
+        }
+
+        // 显示结果文本
+        Dialogue.show([option.result], () => {
+            if (option.gaslight) {
+                Dialogue.showGaslight(option.gaslight);
+                this.flags.gaslightCount++;
+            }
+        });
+    },
+
+    /**
+     * 应用物品效果 (Legacy)
      */
     applyItemEffect(item) {
         switch (item.effect) {
@@ -264,45 +345,47 @@ const Exploration = {
                 Renderer.flicker(6);
                 break;
             case 'vanish':
-                // 物品从房间消失
                 Renderer.shake(4);
                 break;
         }
     },
 
     /**
-     * 处理钥匙互动（特殊：会飞走）
+     * 处理钥匙互动（动态、随机飞行）
      */
     handleKeyInteraction(item) {
-        // 如果已经拿到钥匙，不再交互
-        if (this.flags.hasKey) {
-            Dialogue.show(['你已经有钥匙了。']);
-            return;
-        }
-
-        // 如果钥匙刚飞走了，不能交互
-        if (this.flags.keyJustFlew) {
-            return;
-        }
+        if (this.flags.hasKey) return;
+        if (this.flags.keyJustFlew) return;
 
         this.flags.keyFlyCount++;
 
-        if (this.flags.keyFlyCount >= item.maxFlyCount) {
-            // 终于拿到钥匙
+        // 追逐5次后获得
+        if (this.flags.keyFlyCount >= 5) {
             this.flags.hasKey = true;
             this.nearbyItem = null;
             Audio.confirm();
             Renderer.shake(4);
             Dialogue.show([item.resultFinal]);
         } else {
-            // 钥匙飞走 - 暂时隐藏钥匙
+            // 钥匙飞走 -> 随机飞到另一个房间
             this.flags.keyJustFlew = true;
             this.nearbyItem = null;
-            Audio.keyFly();
+            Audio.itemBreak(); // 飞走音效
             Renderer.shake(8);
             Renderer.flicker(4);
+
             Dialogue.show([item.result], () => {
-                Dialogue.showGaslight(item.gaslight);
+                // 移动钥匙到随机房间 (排除当前房间)
+                const rooms = Object.keys(this.KEY_POSITIONS);
+                const otherRooms = rooms.filter(r => r !== this.currentRoom.id);
+                const randomRoom = otherRooms[Math.floor(Math.random() * otherRooms.length)];
+
+                this.flags.currentKeyRoom = randomRoom;
+                console.log('Key flew to:', randomRoom);
+
+                if (item.gaslight) {
+                    Dialogue.showGaslight(item.gaslight);
+                }
             });
         }
     },
@@ -321,11 +404,10 @@ const Exploration = {
         };
 
         try {
-            localStorage.setItem('translation_failure_save', JSON.stringify(saveData));
+            localStorage.setItem('translation_failure_safe_save', JSON.stringify(saveData));
             console.log('Game saved successfully');
         } catch (e) {
             console.error('Save failed:', e);
-            // 这里不抛出错误，防止游戏卡死
         }
     },
 
@@ -334,7 +416,7 @@ const Exploration = {
      */
     loadGame() {
         try {
-            const saveData = localStorage.getItem('translation_failure_save');
+            const saveData = localStorage.getItem('translation_failure_safe_save');
             if (saveData) {
                 const data = JSON.parse(saveData);
                 this.playerHp = data.playerHp;
@@ -368,33 +450,43 @@ const Exploration = {
         const offsetX = (Renderer.WIDTH - roomPixelWidth) / 2;
         const offsetY = (Renderer.HEIGHT - roomPixelHeight) / 2;
 
-        // 渲染网格
+        // 渲染地面和墙壁
+        Draw.roomFloor(offsetX, offsetY, roomWidth, roomHeight, GRID.TILE_SIZE);
+        Draw.roomWalls(offsetX, offsetY, roomWidth, roomHeight, GRID.TILE_SIZE);
+
+        // 渲染内容
         for (let y = 0; y < roomHeight; y++) {
             for (let x = 0; x < roomWidth; x++) {
                 const tile = room.layout[y][x];
                 const px = offsetX + x * GRID.TILE_SIZE;
                 const py = offsetY + y * GRID.TILE_SIZE;
 
-                if (tile === 1) {
-                    // 墙壁 - 蓝色
-                    Draw.wall(px, py, GRID.TILE_SIZE);
-                } else if (tile === 0) {
-                    // 地板 - 有纹理
-                    Draw.floor(px, py, GRID.TILE_SIZE);
-                } else if (typeof tile === 'string') {
-                    // 如果已经拿到钥匙，或钥匙刚飞走，不绘制钥匙
+                // 地板(0)和墙(1)已经画过了
+                if (typeof tile === 'string') {
+                    // 如果已经拿到钥匙，跳过普通钥匙tile
                     if (tile === 'KEY' && (this.flags.hasKey || this.flags.keyJustFlew)) {
-                        Draw.floor(px, py, GRID.TILE_SIZE);  // 绘制地板代替
                         continue;
                     }
+
                     if (tile.startsWith('DOOR')) {
-                        // 门 - 白色
                         Draw.door(px, py, GRID.TILE_SIZE);
                     } else if (ITEMS[tile]) {
-                        // 物品 - 红色
                         Draw.item(px, py, GRID.TILE_SIZE, tile);
                     }
                 }
+            }
+        }
+
+        // 渲染动态钥匙
+        if (!this.flags.hasKey &&
+            this.flags.currentKeyRoom === this.currentRoom.id &&
+            !this.flags.keyJustFlew) {
+
+            const pos = this.KEY_POSITIONS[this.currentRoom.id];
+            if (pos) {
+                const px = offsetX + pos.x * GRID.TILE_SIZE;
+                const py = offsetY + pos.y * GRID.TILE_SIZE;
+                Draw.item(px, py, GRID.TILE_SIZE, 'KEY');
             }
         }
 
@@ -404,7 +496,7 @@ const Exploration = {
         Draw.player(playerPx, playerPy, GRID.TILE_SIZE);
 
         // 渲染UI
-        this.renderUI(offsetX, offsetY, roomPixelWidth);
+        this.renderUI(offsetX, offsetY);
 
         // 渲染对话
         Dialogue.render();
@@ -413,21 +505,30 @@ const Exploration = {
     /**
      * 渲染UI
      */
-    renderUI(offsetX, offsetY, roomWidth) {
+    renderUI(offsetX, offsetY) {
         const room = this.currentRoom;
 
-        // 房间标题
-        Renderer.drawText(room.title, 16, 16, Renderer.COLORS.WHITE, 14);
+        // 房间标题 (随震动偏移)
+        Renderer.drawText(room.title, 16 + Renderer.offsetX, 16 + Renderer.offsetY, Renderer.COLORS.WHITE, 14);
 
         // HP
         Renderer.drawText('HP', 16, Renderer.HEIGHT - 30, Renderer.COLORS.WHITE, 12);
         Draw.hpBar(40, Renderer.HEIGHT - 32, this.playerHp, this.maxHp, 80, 16);
 
         // 交互提示
-        if (this.nearbyItem && ITEMS[this.nearbyItem] && !this.nearbyItem.startsWith('DOOR')) {
+        if (this.nearbyItem) {
             const item = ITEMS[this.nearbyItem];
-            const promptText = `[Z] ${item.action} ${item.name}`;
-            Renderer.drawTextCentered(promptText, Renderer.HEIGHT - 60, Renderer.COLORS.RED, 14);
+            // 对于KEY，特殊提示
+            let action = item ? item.action : '查看';
+            let name = item ? item.name : '???';
+
+            if (this.nearbyItem === 'KEY') {
+                name = '钥匙';
+                action = '拾取';
+            }
+
+            const promptText = `[Z] ${action} ${name}`;
+            Renderer.drawTextCentered(promptText, Renderer.HEIGHT - 40, Renderer.COLORS.RED, 14);
         }
     }
 };

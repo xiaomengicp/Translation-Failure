@@ -108,21 +108,46 @@ const ITEMS = {
     TV: {
         id: 'TV',
         name: '电视',
-        examine: '电视是关着的。屏幕上好像有什么...',
-        action: '打开',
-        result: '你按下开关...\n屏幕闪烁了一下，然后碎了。\n你又弄坏了东西。',
-        effect: 'break',
-        gaslight: '【你碰什么坏什么】'
+        type: 'scenery',
+        action: '看',
+        // result: '只有雪花点。声音很大。', (Legacy)
+        options: [
+            {
+                label: '打开',
+                result: '屏幕亮起。只有刺耳的雪花点噪音。',
+                actionSfx: 'flicker'
+            },
+            {
+                label: '砸烂',
+                effect: 'break',
+                result: '你砸烂了屏幕。玻璃碎片划伤了你的手。',
+                damage: 5,
+                gaslight: ['你总是由于无法控制而搞砸一切', '这就是为什么没人喜欢和你在一起'],
+                actionSfx: 'itemBreak'
+            }
+        ]
     },
-
     WINDOW: {
         id: 'WINDOW',
         name: '窗户',
-        examine: '窗外好像有什么东西在动...',
-        action: '查看',
-        result: '你看向窗外...\n什么都没有。\n或者说，你不应该看到任何东西。',
-        effect: 'gaslight_only',
-        gaslight: '【孩子，那只是你的想象】\n【你总是看到不存在的东西】'
+        type: 'scenery',
+        action: '看',
+        options: [
+            {
+                label: '向外看',
+                result: '外面漆黑一片，什么也看不见。连星星都没有。'
+            },
+            {
+                label: '打开',
+                result: '窗户卡住了。或者被钉死了。',
+                actionSfx: 'cancel'
+            },
+            {
+                label: '敲击',
+                result: '玻璃发出沉闷的响声。没人回应。',
+                actionSfx: 'step'
+            }
+        ]
     },
 
     // ========== 卧室2物品 ==========

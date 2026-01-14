@@ -138,7 +138,7 @@ const ROOMS = {
         title: '走廊',
         description: '走廊。尽头有一扇门...',
 
-        // 14 宽 x 6 高 (走廊型，窄但长)
+        // 14 宽 x 6 高
         layout: [
             [1, 1, 1, 1, 1, 1, 'DOOR_MOM', 1, 1, 1, 1, 1, 1, 1],
             [1, 0, 'SAVE', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -151,12 +151,12 @@ const ROOMS = {
         doorLinks: {
             'DOOR_MOM': {
                 label: '妈妈的房间',
-                target: 'MOM_DOOR',
-                spawnX: 5, spawnY: 6
+                target: 'KEY_ROOM_1', // 错乱：说去妈妈房间，实际去储藏室
+                spawnX: 4, spawnY: 6
             },
             'DOOR_LEFT': {
                 label: '卧室',
-                target: 'BEDROOM_1',
+                target: 'BEDROOM_2', // 错乱：去卧室2
                 spawnX: 8, spawnY: 3
             },
             'DOOR_RIGHT': {
@@ -166,7 +166,7 @@ const ROOMS = {
             },
             'DOOR_DOWN': {
                 label: '卧室',
-                target: 'BEDROOM_2',
+                target: 'BEDROOM_1',
                 spawnX: 5, spawnY: 1
             }
         },
@@ -184,7 +184,7 @@ const ROOMS = {
             [1, 1, 1, 1, 'DOOR_MOM_LOCK', 1, 1, 1, 1, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            ['DOOR_LEFT', 0, 0, 0, 0, 0, 0, 'KEY', 0, 'DOOR_RIGHT'],
+            ['DOOR_LEFT', 0, 0, 0, 0, 0, 0, 0, 0, 'DOOR_RIGHT'], // Removed KEY
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -200,18 +200,18 @@ const ROOMS = {
             },
             'DOOR_LEFT': {
                 label: '储藏室',
-                target: 'KEY_ROOM_1',
+                target: 'KEY_ROOM_2', // 错乱：互换
                 spawnX: 6, spawnY: 3
             },
             'DOOR_RIGHT': {
                 label: '杂物间',
-                target: 'KEY_ROOM_2',
+                target: 'KEY_ROOM_1', // 错乱：互换
                 spawnX: 1, spawnY: 3
             },
             'DOOR_DOWN': {
                 label: '走廊',
-                target: 'HALLWAY',
-                spawnX: 7, spawnY: 1
+                target: 'BEDROOM_2', // 错乱：去卧室2
+                spawnX: 5, spawnY: 1
             }
         },
 
@@ -224,7 +224,7 @@ const ROOMS = {
         title: '储藏室',
         description: '一个黑暗的储藏室。',
 
-        // 8 宽 x 8 高 (小房间)
+        // 8 宽 x 8 高
         layout: [
             [1, 1, 1, 1, 1, 1, 1, 1],
             [1, 0, 0, 0, 0, 0, 0, 1],
@@ -239,13 +239,13 @@ const ROOMS = {
         doorLinks: {
             'DOOR_RIGHT': {
                 label: '妈妈的房间',
-                target: 'MOM_DOOR',
-                spawnX: 2, spawnY: 3
+                target: 'KEY_ROOM_2', //  Loop: 去另一个钥匙房
+                spawnX: 1, spawnY: 3
             },
             'DOOR_DOWN': {
                 label: '杂物间',
-                target: 'KEY_ROOM_2',
-                spawnX: 4, spawnY: 1
+                target: 'HALLWAY', // Loop back to Hallway
+                spawnX: 7, spawnY: 4
             }
         },
 
@@ -272,13 +272,13 @@ const ROOMS = {
         doorLinks: {
             'DOOR_UP': {
                 label: '储藏室',
-                target: 'KEY_ROOM_1',
-                spawnX: 4, spawnY: 6
+                target: 'MOM_DOOR', // Only way to Mom Door (Vertical paradox)
+                spawnX: 5, spawnY: 6
             },
             'DOOR_LEFT': {
                 label: '妈妈的房间',
-                target: 'MOM_DOOR',
-                spawnX: 8, spawnY: 3
+                target: 'KEY_ROOM_1', // Loop
+                spawnX: 6, spawnY: 3
             }
         },
 
