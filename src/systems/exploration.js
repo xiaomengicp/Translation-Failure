@@ -360,8 +360,9 @@ const Exploration = {
 
         this.flags.keyFlyCount++;
 
-        // 追逐5次后获得
-        if (this.flags.keyFlyCount >= 5) {
+        // 追逐次数达到上限后获得
+        const max = item.maxFlyCount || 3;
+        if (this.flags.keyFlyCount >= max) {
             this.flags.hasKey = true;
             this.nearbyItem = null;
             Audio.confirm();
