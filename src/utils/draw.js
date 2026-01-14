@@ -337,6 +337,49 @@ const Draw = {
     },
 
     /**
+     * 绘制妈妈（扭曲的怪物形象）
+     */
+    mom(x, y) {
+        const ctx = Renderer.ctx;
+        const active = Math.sin(Date.now() / 200); // 呼吸效果
+
+        // 身体 - 黑色不规则形状
+        ctx.fillStyle = Renderer.COLORS.BLACK;
+        ctx.beginPath();
+        const height = 120 + active * 5;
+        const width = 60 + active * 2;
+
+        // 头部
+        ctx.ellipse(x, y - height / 2 + 20, 30 + this.jitter(2), 30 + this.jitter(2), 0, 0, Math.PI * 2);
+        // 躯干
+        ctx.rect(x - width / 2, y - height / 2 + 40, width, height - 40);
+        ctx.fill();
+
+        // 轮廓 - 红色，疯狂颤动
+        ctx.strokeStyle = Renderer.COLORS.RED;
+        ctx.lineWidth = 2;
+
+        // 多重轮廓
+        for (let i = 0; i < 3; i++) {
+            const offset = (Math.random() - 0.5) * 10;
+            ctx.beginPath();
+            ctx.ellipse(x + offset, y - height / 2 + 20 + offset, 32, 32, 0, 0, Math.PI * 2);
+            ctx.stroke();
+
+            this.roughLine(x - width / 2 - 5 + offset, y + height / 2 + offset, x + width / 2 + 5 + offset, y + height / 2 + offset, Renderer.COLORS.RED, 1);
+        }
+
+        // 眼睛 - 多个白色方块，疯狂闪烁
+        ctx.fillStyle = Renderer.COLORS.WHITE;
+        if (Math.random() > 0.2) ctx.fillRect(x - 15 + this.jitter(2), y - 60, 8, 8);
+        if (Math.random() > 0.2) ctx.fillRect(x + 5 + this.jitter(2), y - 65, 10, 6);
+        if (Math.random() > 0.8) ctx.fillRect(x - 5 + this.jitter(4), y - 30 + this.jitter(4), 4, 12); // 第三只眼
+
+        // 嘴 - 黑色背景上的红色裂缝
+        this.roughLine(x - 20, y - 10, x + 20, y - 5, Renderer.COLORS.RED, 2);
+    },
+
+    /**
      * 绘制对话框
      */
     dialogBox(y, height, color = Renderer.COLORS.WHITE) {
