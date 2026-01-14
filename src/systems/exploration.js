@@ -1,85 +1,70 @@
 /**
  * Exploration - 探索系统
- * 处理房间切换、玩家移动、物品互动
+ * 
+ * 核心逻辑：
+ * 1. 网格移动 - 玩家在10x10网格中移动
+ * 2. 门传送 - 踩到门格子时，根据doorLinks传送到错误的房间
+ * 3. 意图颠倒 - 物品交互结果与UI提示相反
  */
 
 const Exploration = {
     // 当前房间
+    currentRoomKey: 'BEDROOM',
     currentRoom: null,
 
-    // 玩家位置（像素坐标）
-    playerX: 0,
-    playerY: 0,
+    // 玩家网格位置
+    playerX: 5,
+    playerY: 5,
 
     // 玩家状态
     playerHp: 100,
     maxHp: 100,
 
-    // 钥匙相关
-    hasKey: false,
-    keyAttempts: 0,
-    keyCurrentRoom: null,  // 钥匙当前所在房间
-
-    // 游戏进度标记
+    // 游戏进度
     flags: {
-        visited: {},           // 已访问房间
-        interacted: {},        // 已互动物品
-        gaslightCount: 0,      // 被gaslight次数
-        savedGame: false,      // 是否已存档
-        doorAttempts: 0        // 尝试开门次数
+        gaslightCount: 0,
+        keyFlyCount: 0,
+        hasKey: false,
+        savedGame: false
     },
 
-    // 随机出口的记忆（某些房间固定后不再随机）
-    exitMemory: {},
+    // 当前靠近的物品
+    nearbyItem: null,
 
-    // 状态
+    // 移动冷却
     moveCooldown: 0,
-    interactionTarget: null,
 
     /**
      * 初始化探索系统
      */
     init() {
-        this.enterRoom('bedroom_1');
+        this.enterRoom('BEDROOM');
     },
 
     /**
      * 进入房间
-     * @param {string} roomId - 房间ID
-     * @param {number} spawnX - 出生点X（可选）
-     * @param {number} spawnY - 出生点Y（可选）
      */
-    enterRoom(roomId, spawnX = null, spawnY = null) {
-        const room = ROOMS[roomId];
+    enterRoom(roomKey, spawnX = null, spawnY = null) {
+        const room = ROOMS[roomKey];
         if (!room) {
-            console.error('Room not found:', roomId);
+            console.error('Room not found:', roomKey);
             return;
         }
 
+        this.currentRoomKey = roomKey;
         this.currentRoom = room;
 
         // 设置玩家位置
-        if (spawnX !== null && spawnY !== null) {
-            this.playerX = spawnX * Renderer.TILE_SIZE;
-            this.playerY = spawnY * Renderer.TILE_SIZE;
-        } else {
-            this.playerX = room.spawnX * Renderer.TILE_SIZE;
-            this.playerY = room.spawnY * Renderer.TILE_SIZE;
-        }
+        this.playerX = spawnX !== null ? spawnX : room.spawnX;
+        this.playerY = spawnY !== null ? spawnY : room.spawnY;
 
-        // 标记已访问
-        this.flags.visited[roomId] = true;
-
-        // 播放移动音效
+        // 播放音效
         Audio.step();
 
-        console.log('Entered room:', roomId);
+        // 显示房间描述
+        Dialogue.show([room.description]);
 
-        // 首次进入房间的描述
-        if (!this.flags['described_' + roomId]) {
-            this.flags['described_' + roomId] = true;
-            Dialogue.show([room.description]);
-        }
+        console.log('Entered room:', roomKey);
     },
 
     /**
@@ -98,11 +83,11 @@ const Exploration = {
 
         // 处理移动
         if (dir.x !== 0 || dir.y !== 0) {
-            this.handleMovement(dir);
+            this.handleMovement(dir.x, dir.y);
         }
 
-        // 处理互动（确认键）
-        if (Input.isJustPressed('confirm')) {
+        // 处理互动
+        if (Input.isJustPressed('confirm') && this.nearbyItem) {
             this.handleInteraction();
         }
     },
@@ -110,367 +95,167 @@ const Exploration = {
     /**
      * 处理移动
      */
-    handleMovement(dir) {
-        const room = this.currentRoom;
-        const tileSize = Renderer.TILE_SIZE;
+    handleMovement(dx, dy) {
+        const newX = this.playerX + dx;
+        const newY = this.playerY + dy;
 
-        // 计算新位置
-        let newX = this.playerX + dir.x * tileSize;
-        let newY = this.playerY + dir.y * tileSize;
-
-        // 检查是否到达边缘（触发房间切换）
-        let exitDir = null;
-        if (newX < 0) exitDir = 'left';
-        else if (newX >= room.width * tileSize) exitDir = 'right';
-        else if (newY < 0) exitDir = 'up';
-        else if (newY >= room.height * tileSize) exitDir = 'down';
-
-        if (exitDir) {
-            this.tryExit(exitDir);
+        // 边界检查
+        if (newX < 0 || newX >= GRID.WIDTH || newY < 0 || newY >= GRID.HEIGHT) {
             return;
         }
 
-        // 边界检查
-        if (newX < 0) newX = 0;
-        if (newY < 0) newY = 0;
-        if (newX >= room.width * tileSize) newX = (room.width - 1) * tileSize;
-        if (newY >= room.height * tileSize) newY = (room.height - 1) * tileSize;
+        const tile = this.currentRoom.layout[newY][newX];
 
-        // 更新位置
-        this.playerX = newX;
-        this.playerY = newY;
-        this.moveCooldown = 8;  // 移动冷却帧数
-
-        Audio.step();
-
-        // 检查是否踩到物品
-        this.checkItemCollision();
-    },
-
-    /**
-     * 尝试从出口离开
-     * 实现非欧几里得空间拓扑：
-     * - teleport: 瞬间传送（无过渡）
-     * - distorted: 扭曲出口（带权重的随机）
-     * - loop: 循环出口（永远回到同一房间）
-     * - fixed: 固定出口
-     */
-    tryExit(direction) {
-        const room = this.currentRoom;
-        const exit = room.exits[direction];
-
-        if (!exit) {
-            // 无出口
+        // 墙壁检查
+        if (tile === 1) {
             Audio.cancel();
             return;
         }
 
-        let targetRoom, spawnX, spawnY;
-        let showMessage = null;
-
-        switch (exit.type) {
-            case 'fixed':
-                targetRoom = exit.target;
-                spawnX = exit.spawnX;
-                spawnY = exit.spawnY;
-                break;
-
-            case 'teleport':
-                // 瞬间传送 - 添加视觉效果
-                targetRoom = exit.target;
-                spawnX = exit.spawnX;
-                spawnY = exit.spawnY;
-                Renderer.flicker(4);  // 轻微闪烁表示传送
-                if (exit.message) {
-                    showMessage = exit.message;
-                }
-                break;
-
-            case 'distorted':
-                // 扭曲出口 - 带权重的随机选择
-                const weights = exit.weights || exit.targets.map(() => 1 / exit.targets.length);
-                const roll = Math.random();
-                let cumulative = 0;
-                let selectedIndex = 0;
-
-                for (let i = 0; i < weights.length; i++) {
-                    cumulative += weights[i];
-                    if (roll < cumulative) {
-                        selectedIndex = i;
-                        break;
-                    }
-                }
-
-                targetRoom = exit.targets[selectedIndex];
-                spawnX = exit.spawns[selectedIndex].spawnX;
-                spawnY = exit.spawns[selectedIndex].spawnY;
-
-                // 如果回到同一个房间，添加扭曲效果
-                if (targetRoom === room.id) {
-                    Renderer.shake(6);
-                }
-                break;
-
-            case 'loop':
-                // 循环出口 - 永远回到指定位置
-                targetRoom = exit.target;
-                spawnX = exit.spawnX;
-                spawnY = exit.spawnY;
-                showMessage = exit.message;
-                Renderer.shake(4);
-                break;
-
-            case 'random':
-                // 保留旧的random类型以保持兼容
-                const memoryKey = room.id + '_' + direction;
-                if (this.exitMemory[memoryKey]) {
-                    const memory = this.exitMemory[memoryKey];
-                    targetRoom = memory.target;
-                    spawnX = memory.spawnX;
-                    spawnY = memory.spawnY;
-                } else {
-                    const index = Math.floor(Math.random() * exit.targets.length);
-                    targetRoom = exit.targets[index];
-                    spawnX = exit.spawns[index].spawnX;
-                    spawnY = exit.spawns[index].spawnY;
-                    if (room.id !== 'bedroom_2') {
-                        this.exitMemory[memoryKey] = { target: targetRoom, spawnX, spawnY };
-                    }
-                }
-                break;
-
-            default:
-                targetRoom = exit.target;
-                spawnX = exit.spawnX;
-                spawnY = exit.spawnY;
+        // 门检查
+        if (typeof tile === 'string' && tile.startsWith('DOOR')) {
+            this.handleDoor(tile);
+            return;
         }
 
-        // 如果有消息要显示，先显示消息再传送
-        if (showMessage) {
-            Dialogue.show([showMessage], () => {
-                this.enterRoom(targetRoom, spawnX, spawnY);
-            });
-        } else {
-            this.enterRoom(targetRoom, spawnX, spawnY);
+        // 更新位置
+        this.playerX = newX;
+        this.playerY = newY;
+        this.moveCooldown = 8;
+
+        Audio.step();
+
+        // 检查附近物品
+        this.checkNearbyItems();
+    },
+
+    /**
+     * 处理门传送
+     * 核心的非欧几里得逻辑在这里
+     */
+    handleDoor(doorId) {
+        const doorLink = this.currentRoom.doorLinks[doorId];
+
+        if (!doorLink) {
+            Audio.cancel();
+            return;
+        }
+
+        // 检查门是否锁着
+        const doorItem = ITEMS[doorId];
+        if (doorItem && doorItem.locked && !this.flags.hasKey) {
+            Dialogue.show(['门是锁着的。你需要钥匙。']);
+            Audio.cancel();
+            return;
+        }
+
+        // 传送到目标房间（这里是关键：target可能与label不一致）
+        this.enterRoom(doorLink.target, doorLink.spawnX, doorLink.spawnY);
+
+        // 添加视觉效果
+        Renderer.flicker(4);
+    },
+
+    /**
+     * 检查附近物品
+     */
+    checkNearbyItems() {
+        const neighbors = [
+            { x: this.playerX, y: this.playerY - 1 },
+            { x: this.playerX, y: this.playerY + 1 },
+            { x: this.playerX - 1, y: this.playerY },
+            { x: this.playerX + 1, y: this.playerY }
+        ];
+
+        this.nearbyItem = null;
+
+        for (const n of neighbors) {
+            if (n.x >= 0 && n.x < GRID.WIDTH && n.y >= 0 && n.y < GRID.HEIGHT) {
+                const tile = this.currentRoom.layout[n.y][n.x];
+                if (typeof tile === 'string' && ITEMS[tile] && !tile.startsWith('DOOR')) {
+                    this.nearbyItem = tile;
+                    break;
+                }
+            }
         }
     },
 
     /**
-     * 检查物品碰撞
+     * 处理物品互动
+     * 意图颠倒：UI显示的action，实际执行的是破坏性result
      */
-    checkItemCollision() {
-        const room = this.currentRoom;
-        if (!room.items) return;
+    handleInteraction() {
+        const itemId = this.nearbyItem;
+        const item = ITEMS[itemId];
 
-        const playerGridX = Math.floor(this.playerX / Renderer.TILE_SIZE);
-        const playerGridY = Math.floor(this.playerY / Renderer.TILE_SIZE);
+        if (!item) return;
 
-        room.items.forEach(itemPlacement => {
-            if (itemPlacement.x === playerGridX && itemPlacement.y === playerGridY) {
-                this.interactionTarget = itemPlacement;
+        // 特殊处理：钥匙
+        if (itemId === 'KEY') {
+            this.handleKeyInteraction(item);
+            return;
+        }
+
+        // 特殊处理：存档点
+        if (itemId === 'SAVE') {
+            this.saveGame();
+            Dialogue.show([item.result]);
+            return;
+        }
+
+        // 先应用效果
+        this.applyItemEffect(item);
+
+        // 显示结果（不是action，是破坏性的result）
+        Dialogue.show([item.result], () => {
+            // 如果有gaslight，显示
+            if (item.gaslight) {
+                Dialogue.showGaslight(item.gaslight);
+                this.flags.gaslightCount++;
             }
         });
     },
 
     /**
-     * 处理互动
+     * 应用物品效果
      */
-    handleInteraction() {
-        // 查找附近可互动物品
-        const room = this.currentRoom;
-        if (!room.items) return;
-
-        const playerGridX = Math.floor(this.playerX / Renderer.TILE_SIZE);
-        const playerGridY = Math.floor(this.playerY / Renderer.TILE_SIZE);
-
-        // 查找玩家位置或相邻位置的物品
-        let nearbyItem = null;
-        for (const itemPlacement of room.items) {
-            const dx = Math.abs(itemPlacement.x - playerGridX);
-            const dy = Math.abs(itemPlacement.y - playerGridY);
-            if (dx <= 1 && dy <= 1) {
-                nearbyItem = itemPlacement;
-                break;
-            }
-        }
-
-        if (!nearbyItem) return;
-
-        const itemData = ITEMS[nearbyItem.id];
-        if (!itemData) return;
-
-        this.interactWith(itemData, nearbyItem);
-    },
-
-    /**
-     * 与物品互动
-     */
-    interactWith(itemData, placement) {
-        // 获取可用互动类型
-        const interactions = itemData.interactions;
-        const interactionTypes = Object.keys(interactions);
-
-        if (interactionTypes.length === 0) return;
-
-        // 如果只有一种互动，直接执行
-        if (interactionTypes.length === 1) {
-            this.executeInteraction(itemData, interactionTypes[0], placement);
-            return;
-        }
-
-        // 多种互动，显示选项
-        const options = interactionTypes.map(type => interactions[type].prompt);
-        Dialogue.showOptions(
-            '要做什么？',
-            options,
-            (index) => {
-                this.executeInteraction(itemData, interactionTypes[index], placement);
-            }
-        );
-    },
-
-    /**
-     * 执行互动
-     * 实现“意图与结果的背离” - UI显示的意图是“查看”，但结果却是“损坏”
-     */
-    executeInteraction(itemData, interactionType, placement) {
-        const interaction = itemData.interactions[interactionType];
-
-        // 标记已互动
-        this.flags.interacted[itemData.id] = true;
-
-        // 特殊处理：钥匙
-        if (itemData.id === 'key' && interactionType === 'take') {
-            this.handleKeyInteraction(interaction, placement);
-            return;
-        }
-
-        // 特殊处理：妈妈的门
-        if (itemData.id === 'mom_door' && interactionType === 'use') {
-            this.handleDoorInteraction(interaction);
-            return;
-        }
-
-        // 特殊处理：存档点
-        if (itemData.id === 'save_point') {
-            this.saveGame();
-            Dialogue.show([interaction.result]);
-            return;
-        }
-
-        // 先处理效果（在显示对话之前）
-        this.applyInteractionEffect(interaction);
-
-        // 显示对话
-        let dialogueLines = [interaction.result];
-
-        // 如果有gaslight文字，对话结束后显示
-        if (interaction.gaslight) {
-            Dialogue.show(dialogueLines, () => {
-                Dialogue.showGaslight(interaction.gaslight);
-                this.flags.gaslightCount++;
-            });
-        } else if (interaction.momVoice) {
-            Dialogue.show(dialogueLines, () => {
-                Dialogue.showMomVoice(interaction.momVoice);
-            });
-        } else {
-            Dialogue.show(dialogueLines);
-        }
-    },
-
-    /**
-     * 应用互动效果
-     */
-    applyInteractionEffect(interaction) {
-        if (!interaction.effect) return;
-
-        switch (interaction.effect) {
+    applyItemEffect(item) {
+        switch (item.effect) {
             case 'break':
                 Audio.itemBreak();
                 Renderer.shake(8);
                 break;
             case 'hurt':
-                this.playerHp -= interaction.damage || 5;
+                this.playerHp -= item.damage || 5;
                 Audio.hurt();
                 Renderer.shake(12);
                 Renderer.flicker(6);
                 break;
-            case 'gaslight':
-                Renderer.shake(5);
-                break;
-            case 'unease':
-                Renderer.shake(3);
+            case 'vanish':
+                // 物品从房间消失
+                Renderer.shake(4);
                 break;
         }
     },
 
     /**
-     * 处理钥匙互动（钥匙会飞走）
+     * 处理钥匙互动（特殊：会飞走）
      */
-    handleKeyInteraction(interaction, placement) {
-        this.keyAttempts++;
+    handleKeyInteraction(item) {
+        this.flags.keyFlyCount++;
 
-        if (this.keyAttempts >= 3) {
-            // 第三次成功拿到
-            this.hasKey = true;
-            Dialogue.show([interaction.resultFinal]);
-
-            // 从房间移除钥匙
-            const room = this.currentRoom;
-            room.items = room.items.filter(item => item.id !== 'key');
+        if (this.flags.keyFlyCount >= item.maxFlyCount) {
+            // 终于拿到钥匙
+            this.flags.hasKey = true;
+            Dialogue.show([item.resultFinal]);
         } else {
             // 钥匙飞走
             Audio.keyFly();
-            Dialogue.show([interaction.result], () => {
-                Dialogue.showGaslight(interaction.gaslight);
+            Dialogue.show([item.result], () => {
+                Dialogue.showGaslight(item.gaslight);
             });
-
-            // 钥匙飞到另一个房间
-            const currentRoomId = this.currentRoom.id;
-            const flyRooms = ROOMS['mom_door'].keyFlyRooms.filter(r => r !== currentRoomId);
-            const newRoom = flyRooms[Math.floor(Math.random() * flyRooms.length)];
-
-            // 从当前房间移除钥匙
-            this.currentRoom.items = this.currentRoom.items.filter(item => item.id !== 'key');
-
-            // 添加到新房间
-            const targetRoom = ROOMS[newRoom];
-            if (targetRoom) {
-                targetRoom.items = targetRoom.items || [];
-                targetRoom.items.push({
-                    id: 'key',
-                    x: Math.floor(targetRoom.width / 2),
-                    y: Math.floor(targetRoom.height / 2)
-                });
-            }
-
-            this.keyCurrentRoom = newRoom;
+            Renderer.shake(6);
         }
-    },
-
-    /**
-     * 处理门互动
-     */
-    handleDoorInteraction(interaction) {
-        this.flags.doorAttempts++;
-
-        if (!this.hasKey) {
-            Dialogue.show([interaction.resultLocked]);
-            return;
-        }
-
-        // 有钥匙但门还是打不开
-        Dialogue.show([interaction.resultWithKey], () => {
-            Dialogue.showGaslight(interaction.gaslight);
-
-            // 触发战斗
-            if (this.flags.doorAttempts >= 2) {
-                setTimeout(() => {
-                    Game.startBattle('mom_battle_1');
-                }, 1500);
-            }
-        });
     },
 
     /**
@@ -479,14 +264,11 @@ const Exploration = {
     saveGame() {
         this.flags.savedGame = true;
         const saveData = {
-            currentRoom: this.currentRoom.id,
+            currentRoomKey: this.currentRoomKey,
             playerX: this.playerX,
             playerY: this.playerY,
             playerHp: this.playerHp,
-            hasKey: this.hasKey,
-            keyAttempts: this.keyAttempts,
-            flags: this.flags,
-            exitMemory: this.exitMemory
+            flags: this.flags
         };
 
         try {
@@ -507,14 +289,8 @@ const Exploration = {
             if (saveData) {
                 const data = JSON.parse(saveData);
                 this.playerHp = data.playerHp;
-                this.hasKey = data.hasKey;
-                this.keyAttempts = data.keyAttempts;
                 this.flags = data.flags;
-                this.exitMemory = data.exitMemory || {};
-                this.enterRoom(data.currentRoom,
-                    Math.floor(data.playerX / Renderer.TILE_SIZE),
-                    Math.floor(data.playerY / Renderer.TILE_SIZE)
-                );
+                this.enterRoom(data.currentRoomKey, data.playerX, data.playerY);
                 return true;
             }
         } catch (e) {
@@ -533,78 +309,66 @@ const Exploration = {
         // 清屏
         Renderer.clear(Renderer.COLORS.BLACK);
 
-        // 计算房间绘制偏移（居中显示）
-        const roomPixelWidth = room.width * Renderer.TILE_SIZE;
-        const roomPixelHeight = room.height * Renderer.TILE_SIZE;
+        // 计算偏移（居中显示）
+        const roomPixelWidth = GRID.WIDTH * GRID.TILE_SIZE;
+        const roomPixelHeight = GRID.HEIGHT * GRID.TILE_SIZE;
         const offsetX = (Renderer.WIDTH - roomPixelWidth) / 2;
         const offsetY = (Renderer.HEIGHT - roomPixelHeight) / 2;
 
-        // 绘制墙壁（先画，作为背景层）
-        Draw.roomWalls(offsetX, offsetY, roomPixelWidth, roomPixelHeight);
+        // 渲染网格
+        for (let y = 0; y < GRID.HEIGHT; y++) {
+            for (let x = 0; x < GRID.WIDTH; x++) {
+                const tile = room.layout[y][x];
+                const px = offsetX + x * GRID.TILE_SIZE;
+                const py = offsetY + y * GRID.TILE_SIZE;
 
-        // 绘制地板（棋盘格纹理）
-        Draw.roomFloor(offsetX, offsetY, roomPixelWidth, roomPixelHeight, Renderer.TILE_SIZE);
-
-        // 绘制房间边框
-        Renderer.drawRectOutline(offsetX, offsetY, roomPixelWidth, roomPixelHeight, Renderer.COLORS.WHITE, 2);
-
-        // 绘制网格（可选，用于调试）
-        // this.renderGrid(offsetX, offsetY, room);
-
-        // 绘制出口指示
-        this.renderExits(offsetX, offsetY, room);
-
-        // 绘制物品
-        if (room.items) {
-            room.items.forEach(itemPlacement => {
-                const itemData = ITEMS[itemPlacement.id];
-                if (itemData) {
-                    const x = offsetX + itemPlacement.x * Renderer.TILE_SIZE;
-                    const y = offsetY + itemPlacement.y * Renderer.TILE_SIZE;
-                    Draw.item(x, y, itemData.type);
+                if (tile === 1) {
+                    // 墙壁 - 蓝色
+                    Draw.wall(px, py, GRID.TILE_SIZE);
+                } else if (tile === 0) {
+                    // 地板 - 黑色（不画，用背景）
+                } else if (typeof tile === 'string') {
+                    if (tile.startsWith('DOOR')) {
+                        // 门 - 白色
+                        Draw.door(px, py, GRID.TILE_SIZE);
+                    } else if (ITEMS[tile]) {
+                        // 物品 - 红色
+                        Draw.item(px, py, GRID.TILE_SIZE, tile);
+                    }
                 }
-            });
+            }
         }
 
-        // 绘制玩家
-        const playerScreenX = offsetX + this.playerX;
-        const playerScreenY = offsetY + this.playerY;
-        Draw.player(playerScreenX, playerScreenY);
+        // 渲染玩家
+        const playerPx = offsetX + this.playerX * GRID.TILE_SIZE;
+        const playerPy = offsetY + this.playerY * GRID.TILE_SIZE;
+        Draw.player(playerPx, playerPy, GRID.TILE_SIZE);
 
-        // 绘制房间名称
-        Renderer.drawText(room.name, 16, 16, Renderer.COLORS.WHITE, 14);
+        // 渲染UI
+        this.renderUI(offsetX, offsetY, roomPixelWidth);
 
-        // 绘制HP
-        Renderer.drawText('HP', 16, Renderer.HEIGHT - 30, Renderer.COLORS.WHITE, 12);
-        Draw.hpBar(40, Renderer.HEIGHT - 32, this.playerHp, this.maxHp, 80, 16);
-
-        // 绘制对话
+        // 渲染对话
         Dialogue.render();
     },
 
     /**
-     * 渲染出口指示
+     * 渲染UI
      */
-    renderExits(offsetX, offsetY, room) {
-        const exits = room.exits;
-        const w = room.width * Renderer.TILE_SIZE;
-        const h = room.height * Renderer.TILE_SIZE;
+    renderUI(offsetX, offsetY, roomWidth) {
+        const room = this.currentRoom;
 
-        // 上
-        if (exits.up) {
-            Renderer.drawRect(offsetX + w / 2 - 16, offsetY - 4, 32, 4, Renderer.COLORS.WHITE);
-        }
-        // 下
-        if (exits.down) {
-            Renderer.drawRect(offsetX + w / 2 - 16, offsetY + h, 32, 4, Renderer.COLORS.WHITE);
-        }
-        // 左
-        if (exits.left) {
-            Renderer.drawRect(offsetX - 4, offsetY + h / 2 - 16, 4, 32, Renderer.COLORS.WHITE);
-        }
-        // 右
-        if (exits.right) {
-            Renderer.drawRect(offsetX + w, offsetY + h / 2 - 16, 4, 32, Renderer.COLORS.WHITE);
+        // 房间标题
+        Renderer.drawText(room.title, 16, 16, Renderer.COLORS.WHITE, 14);
+
+        // HP
+        Renderer.drawText('HP', 16, Renderer.HEIGHT - 30, Renderer.COLORS.WHITE, 12);
+        Draw.hpBar(40, Renderer.HEIGHT - 32, this.playerHp, this.maxHp, 80, 16);
+
+        // 交互提示
+        if (this.nearbyItem && ITEMS[this.nearbyItem] && !this.nearbyItem.startsWith('DOOR')) {
+            const item = ITEMS[this.nearbyItem];
+            const promptText = `[Z] ${item.action} ${item.name}`;
+            Renderer.drawTextCentered(promptText, Renderer.HEIGHT - 60, Renderer.COLORS.RED, 14);
         }
     }
 };
