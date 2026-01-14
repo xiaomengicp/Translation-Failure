@@ -13,6 +13,8 @@ const Game = {
     // 过渡效果
     transitionAlpha: 0,
     transitionCallback: null,
+    transitionCallbackExecuted: false,
+    previousState: null,  // 过渡前的状态
 
     /**
      * 初始化游戏
@@ -77,8 +79,10 @@ const Game = {
      * 淡入淡出过渡
      */
     fadeTransition(callback) {
+        this.previousState = this.state;
         this.state = 'transition';
         this.transitionAlpha = 0;
+        this.transitionCallbackExecuted = false;
         this.transitionCallback = callback;
     },
 
@@ -143,22 +147,25 @@ const Game = {
      * 更新过渡效果
      */
     updateTransition() {
-        if (this.transitionAlpha < 1) {
-            // 淡出
+        if (this.transitionAlpha < 1 && !this.transitionCallbackExecuted) {
+            // 淡出（变黑）
             this.transitionAlpha += 0.05;
             if (this.transitionAlpha >= 1) {
-                // 执行回调
+                this.transitionAlpha = 1;
+                // 执行回调（这会改变内部状态但不改变this.state）
                 if (this.transitionCallback) {
                     this.transitionCallback();
-                    this.transitionCallback = null;
+                    this.transitionCallbackExecuted = true;
                 }
             }
         } else {
-            // 淡入
+            // 淡入（变透明）
             this.transitionAlpha -= 0.05;
             if (this.transitionAlpha <= 0) {
                 this.transitionAlpha = 0;
-                // 过渡结束，状态已经在回调中设置
+                this.transitionCallbackExecuted = false;
+                this.transitionCallback = null;
+                // 过渡结束 - 但state已经在callback中被设置了
             }
         }
     },
@@ -214,13 +221,24 @@ const Game = {
      * 渲染过渡效果
      */
     renderTransition() {
-        // 先渲染当前场景
-        switch (this.state) {
+        // 确定要渲染哪个场景
+        // 如果callback还没执行，渲染previousState
+        // 如果callback已执行，渲染新的state
+        const sceneToRender = this.transitionCallbackExecuted ? this.state : this.previousState;
+
+        // 渲染场景
+        switch (sceneToRender) {
             case 'exploration':
                 Exploration.render();
                 break;
             case 'battle':
                 Battle.render();
+                break;
+            case 'title':
+                this.renderTitle();
+                break;
+            case 'end':
+                this.renderEnd();
                 break;
             default:
                 Renderer.clear(Renderer.COLORS.BLACK);
