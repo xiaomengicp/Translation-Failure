@@ -58,6 +58,36 @@ const Draw = {
     },
 
     /**
+     * 绘制地板（有纹理的黑色）
+     */
+    floor(x, y, size) {
+        const ctx = Renderer.ctx;
+
+        // 基础黑色
+        ctx.fillStyle = Renderer.COLORS.BLACK;
+        ctx.fillRect(x, y, size, size);
+
+        // 基于位置的伪随机
+        const rand = (x * 11 + y * 17) % 100;
+
+        // 偶尔有一些划痕
+        if (rand < 15) {
+            ctx.strokeStyle = 'rgba(74, 95, 127, 0.2)';  // 淡蓝色划痕
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x + 4 + this.jitter(2), y + 4 + this.jitter(2));
+            ctx.lineTo(x + size - 4 + this.jitter(2), y + size - 4 + this.jitter(2));
+            ctx.stroke();
+        }
+
+        // 偶尔有灰尘点
+        if (rand > 75) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.fillRect(x + 10 + this.jitter(4), y + 10 + this.jitter(4), 2, 2);
+        }
+    },
+
+    /**
      * 绘制墙壁（蓝色，不规则，有纹理）
      */
     wall(x, y, size) {

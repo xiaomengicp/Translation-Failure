@@ -366,7 +366,8 @@ const Exploration = {
                     // 墙壁 - 蓝色
                     Draw.wall(px, py, GRID.TILE_SIZE);
                 } else if (tile === 0) {
-                    // 地板 - 黑色（不画，用背景）
+                    // 地板 - 有纹理
+                    Draw.floor(px, py, GRID.TILE_SIZE);
                 } else if (typeof tile === 'string') {
                     // 如果已经拿到钥匙，不绘制钥匙
                     if (tile === 'KEY' && this.flags.hasKey) {
